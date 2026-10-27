@@ -1,0 +1,7 @@
+# foundry
+out/
+cache/
+
+# VIM
+*.swp
+*.swo
