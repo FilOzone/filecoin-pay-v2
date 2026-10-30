@@ -5,8 +5,9 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 import {CalldataSlice, CalldataUtils} from "fvm-solidity/CalldataUtils.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 
-import {CalldataParser} from "src/lib/CalldataParser.sol";
-import {ALL, NONE, Permissions} from "src/lib/Permissions.sol";
+import * as Ops from "./lib/FilecoinPayOps.sol";
+import {CalldataParser} from "./lib/CalldataParser.sol";
+import {ALL, NONE, Permissions} from "./lib/Permissions.sol";
 
 contract FilecoinPayV2 is IERC6909 {
     using CalldataUtils for CalldataSlice;
@@ -144,7 +145,7 @@ contract FilecoinPayV2 is IERC6909 {
 
     struct IncomingStream {
         uint88 incomingRate;
-        uint40 modifiedEpoch;
+        uint40 settledUpTo;
         // NOTE: it may be more effiicent to accumulate pending balance here and sweep it later
         // uint128 available;
     }
@@ -173,12 +174,12 @@ contract FilecoinPayV2 is IERC6909 {
 
         unchecked {
             uint256 settleUpTo = canSettleTo(users[from].accounts[token].latest);
-            uint256 blocks = settleUpTo - uint256(stream.modifiedEpoch);
+            uint256 blocks = settleUpTo - uint256(stream.settledUpTo);
             if (blocks == 0) {
                 return 0;
             }
 
-            stream.modifiedEpoch = uint40(settleUpTo);
+            stream.settledUpTo = uint40(settleUpTo);
             rail.stream = stream;
 
             amount = blocks * stream.incomingRate;
@@ -234,44 +235,27 @@ contract FilecoinPayV2 is IERC6909 {
         _dispatch(Auth({authenticated: msg.sender, permissions: scope}), script.iter());
     }
 
-    uint256 constant OP_POP = 0;
-    uint256 constant OP_PUSH = 1;
-    uint256 constant OP_RESET = 2;
-    uint256 constant OP_SUDO = 3;
-    uint256 constant OP_AUTHRAIL = 4;
-    uint256 constant OP_CREATERAIL = 5;
-    uint256 constant OP_DEPOSIT = 6;
-    uint256 constant OP_DEPOSITTO = 7;
-    uint256 constant OP_WITHDRAW = 8;
-    uint256 constant OP_WITHDRAWTO = 9;
-    uint256 constant OP_TRANSFER = 10;
-    uint256 constant OP_TRANSFERFROM = 11;
-    uint256 constant OP_LOCK = 12;
-    uint256 constant OP_UNLOCK = 13;
-    uint256 constant OP_INCREASERATE = 14;
-    uint256 constant OP_DECREASERATE = 15;
-
     function _dispatch(Auth memory auth, CalldataSlice memory remaining) internal {
         while (remaining.length != 0) {
             uint256 method = remaining.nextByte();
             if (method < 8) {
                 if (method < 4) {
                     if (method < 2) {
-                        if (method == OP_POP) {
-                            // OP_POP
+                        if (method == Ops.POP) {
+                            // Ops.POP
                             return;
                         } else {
-                            // OP_PUSH
+                            // Ops.PUSH
                             Auth memory next = Auth({authenticated: auth.authenticated, permissions: auth.permissions});
                             _dispatch(next, remaining);
                         }
                     } else {
-                        if (method == OP_RESET) {
-                            // OP_RESET
+                        if (method == Ops.RESET) {
+                            // Ops.RESET
                             auth.authenticated = msg.sender;
                             auth.permissions = ALL;
                         } else {
-                            // OP_SUDO
+                            // Ops.SUDO
                             address who = remaining.nextAddress();
                             Permissions permissions =
                                 users[who].authorizations[auth.authenticated].permissions & auth.permissions;
@@ -282,8 +266,8 @@ contract FilecoinPayV2 is IERC6909 {
                     }
                 } else {
                     if (method < 6) {
-                        if (method == OP_AUTHRAIL) {
-                            // OP_AUTHRAIL
+                        if (method == Ops.AUTHRAIL) {
+                            // Ops.AUTHRAIL
                             (
                                 address rail,
                                 address from,
