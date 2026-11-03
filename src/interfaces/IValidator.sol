@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
 // NOTE we don't have to keep using this interface from V1 if there is a big enough benefit to changing it or to having custom v2 validation logic
