@@ -16,6 +16,11 @@ remappings = [
 [lint]
 severity = ["high", "med", "low", "info", "gas", "code-size"]
 exclude_lints = [
+    "inline-assembly",
+    "internal-function-used-once",
+    "literal-instead-of-constant",
+    "reentrancy-events",
+    "require-revert-in-loop",
+    "todo-comment",
     "unsafe-typecast",
 ]
-

@@ -2,17 +2,16 @@ pragma solidity ^0.8.37;
 
 import {IERC165} from "forge-std/interfaces/IERC165.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
-import {CalldataSlice, CalldataUtils} from "fvm-solidity/CalldataUtils.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 
-import * as Ops from "./lib/FilecoinPayOps.sol";
-import {CalldataParser} from "./lib/CalldataParser.sol";
+import {IRailV2} from "./interfaces/IRail.sol";
+import "./lib/FilecoinPayOps.sol" as Ops;
 import {ALL, NONE, Permissions} from "./lib/Permissions.sol";
+import {ScriptIterator, ScriptReading} from "./lib/Script.sol";
 
 contract FilecoinPayV2 is IERC6909 {
-    using CalldataUtils for CalldataSlice;
-    using CalldataParser for CalldataSlice;
-    using CalldataParser for bytes;
+    using ScriptReading for bytes;
+    using ScriptReading for ScriptIterator;
     using LibClone for bytes32;
 
     struct Authorization {
@@ -160,21 +159,25 @@ contract FilecoinPayV2 is IERC6909 {
         address from;
         uint256 token;
         address operator;
-        bytes32 salt;
-        assembly ("memory-safe") {
-            calldatacopy(0, 36, 64)
-            from := shr(96, mload(0))
-            token := shr(96, mload(20))
-            operator := shr(96, mload(40))
-            salt := keccak256(0, 64)
+        address railAddress;
+        {
+            bytes32 salt;
+            assembly ("memory-safe") {
+                calldatacopy(0, 36, 64)
+                from := shr(96, mload(0))
+                token := shr(96, mload(20))
+                operator := shr(96, mload(40))
+                salt := keccak256(0, 64)
+            }
+            railAddress = initcodeHash.predictDeterministicAddress(salt, address(this));
         }
-        address railAddress = initcodeHash.predictDeterministicAddress(salt, address(this));
         User storage rail = users[railAddress];
         IncomingStream memory stream = rail.stream;
 
         unchecked {
             uint256 settleUpTo = canSettleTo(users[from].accounts[token].latest);
-            uint256 blocks = settleUpTo - uint256(stream.settledUpTo);
+            uint256 prevSettledEpoch = uint256(stream.settledUpTo);
+            uint256 blocks = settleUpTo - prevSettledEpoch;
             if (blocks == 0) {
                 return 0;
             }
@@ -183,10 +186,15 @@ contract FilecoinPayV2 is IERC6909 {
             rail.stream = stream;
 
             amount = blocks * stream.incomingRate;
-            rail.accounts[token].latest.balance += uint128(amount);
-
+            Account storage railAccount = rail.accounts[token];
+            uint256 prevBalance = current(railAccount.latest);
+            railAccount.latest.balance += uint128(amount);
             // judgement: the initiator of the payment is the operator, not the caller
             emit Transfer(operator, from, railAddress, token, amount);
+
+            bytes memory script = IRailV2(railAddress).settleRail(prevSettledEpoch, settleUpTo, prevBalance, amount);
+
+            _dispatch(Auth({authenticated: railAddress, permissions: ALL}), script.memoryIter());
         }
     }
 
@@ -228,15 +236,15 @@ contract FilecoinPayV2 is IERC6909 {
      */
 
     function executeScript(bytes calldata script) external {
-        _dispatch(Auth({authenticated: msg.sender, permissions: ALL}), script.iter());
+        _dispatch(Auth({authenticated: msg.sender, permissions: ALL}), script.calldataIter());
     }
 
     function executeScript(Permissions scope, bytes calldata script) external {
-        _dispatch(Auth({authenticated: msg.sender, permissions: scope}), script.iter());
+        _dispatch(Auth({authenticated: msg.sender, permissions: scope}), script.calldataIter());
     }
 
-    function _dispatch(Auth memory auth, CalldataSlice memory remaining) internal {
-        while (remaining.length != 0) {
+    function _dispatch(Auth memory auth, ScriptIterator memory remaining) internal {
+        while (remaining.curr < remaining.end) {
             uint256 method = remaining.nextByte();
             if (method < 8) {
                 if (method < 4) {

@@ -8,7 +8,6 @@ import {ProvingPeriodRail} from "../../src/rails/ProvingPeriodRail.sol";
 
 import {MockValidator} from "../lib/MockValidator.sol";
 
-
 contract ProvingPeriodRailTest is Test {
     using MockValidator for *;
 
@@ -35,10 +34,8 @@ contract ProvingPeriodRailTest is Test {
         result.settleUpto = ACTIVATION + PROVING_PERIOD;
         vm.roll(result.settleUpto);
         VALIDATOR.validatePayment.mock(railId, result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
-        
+
         bytes memory script = rail.settleRail(ACTIVATION, result.settleUpto, 0, result.modifiedAmount);
-        assertEq(script, abi.encodePacked(
-            uint8(TRANSFER), RECIPIENT, result.modifiedAmount
-        ));
+        assertEq(script, abi.encodePacked(uint8(TRANSFER), RECIPIENT, result.modifiedAmount));
     }
 }

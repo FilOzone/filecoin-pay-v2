@@ -11,7 +11,21 @@ contract Stream is IRailV2 {
         RECIPIENT = bytes20(recipient);
     }
 
-    function settleRail(uint256 /*prevSettledEpoch*/, uint256 /*settledUpTo*/, uint256 /*prevBalance*/, uint256 /*addsBalance*/) external view returns (bytes memory /*script*/) {
+    function settleRail(
+        uint256,
+        /*prevSettledEpoch*/
+        uint256,
+        /*settledUpTo*/
+        uint256,
+        /*prevBalance*/
+        uint256 /*addsBalance*/
+    )
+        external
+        view
+        returns (
+            bytes memory /*script*/
+        )
+    {
         bytes20 recipient = RECIPIENT;
         assembly ("memory-safe") {
             mstore(0, 32)
