@@ -1,38 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-import {ScriptIterator, ScriptReading} from "../src/lib/Script.sol";
+import {ScriptReading} from "../src/lib/Script.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract ScriptTest is Test {
-    using ScriptReading for ScriptIterator;
+    using ScriptReading for uint256;
     using ScriptReading for bytes;
 
     bytes constant DATA = hex"0001ff02030405060708090a0b0c0d0e0f1044445555666677777777777777777777777777777778888888888888888888888888888888999999999999999999999aaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbc";
 
-    function _testIter(ScriptIterator memory iter) internal view {
-        assertEq(iter.end - iter.curr, DATA.length);
-        uint256 u256 = iter.nextByte();
+    function _testIter(uint256 curr, uint256 end) internal view {
+        assertEq(end - curr, DATA.length);
+        uint256 u256;
+        (u256, curr) = curr.nextByte();
         assertEq(u256, 0);
-        u256 = iter.nextByte();
+        (u256, curr) = curr.nextByte();
         assertEq(u256, 1);
-        u256 = iter.nextByte();
+        (u256, curr) = curr.nextByte();
         assertEq(u256, 255);
-        address who = iter.nextAddress();
+        address who;
+        (who, curr) = curr.nextAddress();
         assertEq(who, 0x02030405060708090A0B0C0d0E0F104444555566);
-        u256 = iter.nextU256();
+        (u256, curr) = curr.nextU256();
         assertEq(u256, 0x6677777777777777777777777777777778888888888888888888888888888888);
-        bytes32 b32 = iter.nextBytes32();
+        bytes32 b32;
+        (b32, curr) = curr.nextBytes32();
         assertEq(b32, 0x999999999999999999999aaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbc);
     }
 
     function testMemoryIter() public {
         bytes memory data = DATA;
-        _testIter(data.memoryIter());
+        (uint256 curr, uint256 end) = data.memoryIter();
+        _testIter(curr, end);
     }
 
     function _calldataHarness(bytes calldata data) external {
-        _testIter(data.calldataIter());
+        (uint256 curr, uint256 end) = data.calldataIter();
+        _testIter(curr, end);
     }
 
     function testCalldataIter() public {

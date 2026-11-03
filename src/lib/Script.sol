@@ -3,90 +3,65 @@ pragma solidity ^0.8.37;
 
 import {LibClone} from "solady/utils/LibClone.sol";
 
-// TODO(perf): try maintaining two fields instead of struct memory
-struct ScriptIterator {
-    uint256 curr;
-    uint256 end;
-}
-
 library ScriptReading {
     using LibClone for bytes32;
 
-    function memoryIter(bytes memory script) internal pure returns (ScriptIterator memory iter) {
+    function memoryIter(bytes memory script) internal pure returns (uint256 curr, uint256 end) {
         assembly ("memory-safe") {
-            let size := mload(script)
-            let dst := add(32, script)
-            mstore(add(iter, 32), add(size, dst))
-            mstore(iter, dst)
+            curr := add(32, script)
+            end := add(mload(script), curr)
         }
     }
 
-    function calldataIter(bytes calldata script) internal pure returns (ScriptIterator memory iter) {
+    function calldataIter(bytes calldata script) internal pure returns (uint256 curr, uint256 end) {
         assembly ("memory-safe") {
-            let dst := mload(0x40)
+            curr := mload(0x40)
             let size := script.length
-            calldatacopy(dst, script.offset, size)
-            let end := add(size, dst)
+            calldatacopy(curr, script.offset, size)
+            end := add(size, curr)
             mstore(0x40, end)
-            mstore(add(iter, 32), end)
-            mstore(iter, dst)
         }
     }
 
-    function nextByte(ScriptIterator memory slice) internal pure returns (uint256 next) {
-        uint256 off = slice.curr;
-        unchecked {
-            slice.curr = off + 1;
-        }
+    function nextByte(uint256 curr) internal pure returns (uint256 next, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := shr(248, mload(off))
+            next := shr(248, mload(curr))
+            newCurr := add(curr, 1)
         }
     }
 
-    function nextAddress(ScriptIterator memory slice) internal pure returns (address next) {
-        uint256 off = slice.curr;
-        unchecked {
-            slice.curr = off + 20;
-        }
+    function nextAddress(uint256 curr) internal pure returns (address next, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := shr(96, mload(off))
+            next := shr(96, mload(curr))
+            newCurr := add(curr, 20)
         }
     }
 
-    function nextU256(ScriptIterator memory slice) internal pure returns (uint256 next) {
-        uint256 off = slice.curr;
-        unchecked {
-            slice.curr = off + 32;
-        }
+    function nextU256(uint256 curr) internal pure returns (uint256 next, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := mload(off)
+            next := mload(curr)
+            newCurr := add(curr, 32)
         }
     }
 
-    function nextBytes32(ScriptIterator memory slice) internal pure returns (bytes32 next) {
-        uint256 off = slice.curr;
-        unchecked {
-            slice.curr = off + 32;
-        }
+    function nextBytes32(uint256 curr) internal pure returns (bytes32 next, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := mload(off)
+            next := mload(curr)
+            newCurr := add(curr, 32)
         }
     }
 
-    function nextRailInfo(ScriptIterator memory slice)
+    function nextRailInfo(uint256 curr)
         internal
         view
-        returns (address rail, address from, address token, address operator)
+        returns (address rail, address from, address token, address operator, uint256 newCurr)
     {
-        uint256 off = slice.curr;
-        unchecked {
-            slice.curr = off + 96;
-        }
         bytes32 initcodeHash;
         bytes32 salt;
         assembly ("memory-safe") {
-            initcodeHash := mload(off)
-            off := add(32, off)
+            newCurr := add(curr, 96)
+            initcodeHash := mload(curr)
+            let off := add(32, curr)
             // TODO(perf) try mcopy to (0,64)
             salt := keccak256(off, add(64, off))
             from := shr(96, mload(off))

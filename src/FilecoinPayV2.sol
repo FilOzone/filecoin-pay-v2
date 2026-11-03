@@ -8,11 +8,11 @@ import {LibClone} from "solady/utils/LibClone.sol";
 import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/FilecoinPayOps.sol" as Ops;
 import {ALL, NONE, Permissions} from "./lib/Permissions.sol";
-import {ScriptIterator, ScriptReading} from "./lib/Script.sol";
+import {ScriptReading} from "./lib/Script.sol";
 
 contract FilecoinPayV2 is IERC6909 {
     using ScriptReading for bytes;
-    using ScriptReading for ScriptIterator;
+    using ScriptReading for uint256;
     using LibClone for bytes32;
 
     struct Authorization {
@@ -195,7 +195,8 @@ contract FilecoinPayV2 is IERC6909 {
 
             bytes memory script = IRailV2(railAddress).settleRail(prevSettledEpoch, settleUpTo, prevBalance, amount);
 
-            _dispatch(Auth({authenticated: railAddress, permissions: ALL}), script.memoryIter());
+            (uint256 curr, uint256 end) = script.memoryIter();
+            _dispatch(Auth({authenticated: railAddress, permissions: ALL}), curr, end);
         }
     }
 
@@ -237,26 +238,29 @@ contract FilecoinPayV2 is IERC6909 {
      */
 
     function executeScript(bytes calldata script) external {
-        _dispatch(Auth({authenticated: msg.sender, permissions: ALL}), script.calldataIter());
+        (uint256 curr, uint256 end) = script.calldataIter();
+        _dispatch(Auth({authenticated: msg.sender, permissions: ALL}), curr, end);
     }
 
     function executeScript(Permissions scope, bytes calldata script) external {
-        _dispatch(Auth({authenticated: msg.sender, permissions: scope}), script.calldataIter());
+        (uint256 curr, uint256 end) = script.calldataIter();
+        _dispatch(Auth({authenticated: msg.sender, permissions: scope}), curr, end);
     }
 
-    function _dispatch(Auth memory auth, ScriptIterator memory remaining) internal {
-        while (remaining.curr < remaining.end) {
-            uint256 method = remaining.nextByte();
+    function _dispatch(Auth memory auth, uint256 curr, uint256 end) internal returns (uint256) {
+        while (curr < end) {
+            uint256 method;
+            (method, curr) = curr.nextByte();
             if (method < 8) {
                 if (method < 4) {
                     if (method < 2) {
                         if (method == Ops.POP) {
                             // Ops.POP
-                            return;
+                            return curr;
                         } else {
                             // Ops.PUSH
                             Auth memory next = Auth({authenticated: auth.authenticated, permissions: auth.permissions});
-                            _dispatch(next, remaining);
+                            curr = _dispatch(next, curr, end);
                         }
                     } else {
                         if (method == Ops.RESET) {
@@ -265,7 +269,8 @@ contract FilecoinPayV2 is IERC6909 {
                             auth.permissions = ALL;
                         } else {
                             // Ops.SUDO
-                            address who = remaining.nextAddress();
+                            address who;
+                            (who, curr) = curr.nextAddress();
                             Permissions permissions =
                                 users[who].authorizations[auth.authenticated].permissions & auth.permissions;
                             require(permissions != NONE, Unauthorized(who, auth.authenticated));
@@ -277,11 +282,9 @@ contract FilecoinPayV2 is IERC6909 {
                     if (method < 6) {
                         if (method == Ops.AUTHRAIL) {
                             // Ops.AUTHRAIL
-                            (
-                                address rail,
-                                address from,
-                                /*address token*/, /*address operator*/
-                            ) = remaining.nextRailInfo();
+                            address rail;
+                            address from;
+                            (rail, from,,, curr) = curr.nextRailInfo();
                             require(rail == auth.authenticated, BadSalt(rail, auth.authenticated));
                             // TODO: determine whether to allow operator revocation
                             // users[from].authorizations[operator].permissions
@@ -298,5 +301,6 @@ contract FilecoinPayV2 is IERC6909 {
                 // 8 9 10 11 12 13 14 15
             }
         }
+        return curr;
     }
 }
