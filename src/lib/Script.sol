@@ -61,14 +61,11 @@ library ScriptReading {
         assembly ("memory-safe") {
             newCurr := add(curr, 96)
             initcodeHash := mload(curr)
-            let off := add(32, curr)
-            // TODO(perf) try mcopy to (0,64)
-            salt := keccak256(off, add(64, off))
-            from := shr(96, mload(off))
-            off := add(20, off)
-            token := shr(96, mload(off))
-            off := add(20, off)
-            operator := shr(96, mload(off))
+            mcopy(0, add(32, curr), 64)
+            salt := keccak256(0, 64)
+            from := shr(96, mload(0))
+            token := shr(96, mload(20))
+            operator := shr(96, mload(40))
         }
         rail = initcodeHash.predictDeterministicAddress(salt, address(this));
     }
