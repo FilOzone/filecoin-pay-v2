@@ -3,6 +3,7 @@ pragma solidity ^0.8.37;
 
 import {Test} from "forge-std/Test.sol";
 
+import {RailId} from "../../src/lib/RailId.sol";
 import {IValidator} from "../../src/interfaces/IValidator.sol";
 import {TRANSFER, UNLOCK} from "../../src/lib/FilecoinPayOps.sol";
 import {ProvingPeriodRail} from "../../src/rails/ProvingPeriodRail.sol";
@@ -18,11 +19,11 @@ contract ProvingPeriodRailTest is Test {
     uint256 private constant PROVING_PERIOD = 2888;
 
     ProvingPeriodRail private rail;
-    uint256 private railId;
+    RailId private railId;
 
     function setUp() public {
         rail = new ProvingPeriodRail(VALIDATOR, RECIPIENT);
-        railId = uint256(uint160(address(rail)));
+        railId = RailId.wrap(uint256(uint160(address(rail))));
 
         vm.roll(ACTIVATION);
         vm.prank(address(VALIDATOR));
@@ -34,9 +35,9 @@ contract ProvingPeriodRailTest is Test {
         result.modifiedAmount = 100;
         result.settleUpto = ACTIVATION + PROVING_PERIOD;
         vm.roll(result.settleUpto);
-        VALIDATOR.validatePayment.mock(railId, result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
+        VALIDATOR.validatePayment.mock(RailId.unwrap(railId), result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
 
-        bytes memory script = rail.settleRail(ACTIVATION, result.settleUpto, 0, result.modifiedAmount);
+        bytes memory script = rail.settleRail(railId, 0, ACTIVATION, result.settleUpto, 0, result.modifiedAmount);
         assertEq(script, abi.encodePacked(uint8(TRANSFER), RECIPIENT, result.modifiedAmount));
     }
 }

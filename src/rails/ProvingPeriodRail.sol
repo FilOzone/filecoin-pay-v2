@@ -3,6 +3,7 @@ pragma solidity ^0.8.37;
 
 import {IValidator} from "../interfaces/IValidator.sol";
 import {IRailV2} from "../interfaces/IRail.sol";
+import {RailId} from "../lib/RailId.sol";
 
 // A rail with a provingPeriod IValidator and a lockupPeriod
 contract ProvingPeriodRail is IRailV2 {
@@ -29,9 +30,8 @@ contract ProvingPeriodRail is IRailV2 {
         RECIPIENT = bytes20(recipient);
     }
 
-    function settleRail(uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance)
-        external
-        returns (bytes memory script)
+    function settleRail(RailId railId, uint256 token, uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance)
+        external returns (bytes memory script)
     {
         require(msg.sender == PAY, NotPayments());
         uint256 refund = 0;

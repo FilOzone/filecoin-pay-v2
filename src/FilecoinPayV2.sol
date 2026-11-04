@@ -3,17 +3,17 @@ pragma solidity ^0.8.37;
 
 import {IERC165} from "forge-std/interfaces/IERC165.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
 
 import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/FilecoinPayOps.sol" as Ops;
-import {ALL, NONE, Permissions} from "./lib/Permissions.sol";
+import {ALL, CREATE_RAIL, NONE, Permissions} from "./lib/Permissions.sol";
+import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
 contract FilecoinPayV2 is IERC6909 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
-    using LibClone for bytes32;
+    using RailIdLibrary for address;
 
     struct Authorization {
         Permissions permissions;
@@ -33,7 +33,6 @@ contract FilecoinPayV2 is IERC6909 {
     struct User {
         mapping(uint256 token => Account) accounts;
         mapping(address authorized => Authorization) authorizations;
-        IncomingStream stream;
     }
 
     mapping(address owner => User) private users;
@@ -128,6 +127,7 @@ contract FilecoinPayV2 is IERC6909 {
         User storage from = users[owner];
         Account storage debit = from.accounts[token];
         if (!from.authorizations[msg.sender].permissions.isOperator()) {
+            // TODO handle "infinite" allowance
             debit.allowance[msg.sender] -= amount;
         }
         Checkpoint memory spenderBalance = debit.latest;
@@ -143,95 +143,65 @@ contract FilecoinPayV2 is IERC6909 {
         return true;
     }
 
-    struct IncomingStream {
-        uint88 incomingRate;
-        uint40 settledUpTo;
-        // NOTE: it may be more effiicent to accumulate pending balance here and sweep it later
-        // uint128 available;
-    }
 
     function settleRail(
-        bytes32 initcodeHash,
-        bytes32[2] calldata /*packedRailInfo*/
+        address operator, address from, uint192 flags, uint256 token
     )
         external
         returns (uint256 amount)
     {
-        address from;
-        uint256 token;
-        address operator;
-        address railAddress;
-        {
-            bytes32 salt;
-            assembly ("memory-safe") {
-                calldatacopy(0, 36, 64)
-                from := shr(96, mload(0))
-                token := shr(96, mload(20))
-                operator := shr(96, mload(40))
-                salt := keccak256(0, 64)
-            }
-            railAddress = initcodeHash.predictDeterministicAddress(salt, address(this));
-        }
-        User storage rail = users[railAddress];
-        IncomingStream memory stream = rail.stream;
+        RailId railId = operator.deriveRail(from, flags);
+        Stream storage stream = railId.getStream(token);
+        StreamState memory loadedStream = stream.state;
 
         unchecked {
             uint256 settleUpTo = canSettleTo(users[from].accounts[token].latest);
-            uint256 prevSettledEpoch = uint256(stream.settledUpTo);
+            uint256 prevSettledEpoch = uint256(loadedStream.settledUpTo);
             uint256 blocks = settleUpTo - prevSettledEpoch;
             if (blocks == 0) {
                 return 0;
             }
 
-            stream.settledUpTo = uint40(settleUpTo);
-            rail.stream = stream;
+            loadedStream.settledUpTo = uint40(settleUpTo);
 
-            amount = blocks * stream.incomingRate;
-            Account storage railAccount = rail.accounts[token];
-            uint256 prevBalance = current(railAccount.latest);
-            railAccount.latest.balance += uint128(amount);
-            // judgement: the initiator of the payment is the operator, not the caller
-            emit Transfer(operator, from, railAddress, token, amount);
-
-            bytes memory script = IRailV2(railAddress).settleRail(prevSettledEpoch, settleUpTo, prevBalance, amount);
-
-            (uint256 curr, uint256 end) = script.memoryIter();
-            _dispatch(Auth({authenticated: railAddress, permissions: ALL}), curr, end);
+            amount = blocks * loadedStream.incomingRate;
+            emit Transfer(operator, from, operator, token, amount);
+            if (flags & FLAG_CALLBACK != 0) {
+                uint256 prevBalance = uint256(loadedStream.available);
+                loadedStream.available = uint128(prevBalance + amount);
+                stream.state = loadedStream;
+                // TODO determine whether to allow separate validator
+                // validator = address(uint160(operator))
+                bytes memory script = IRailV2(operator).settleRail(railId, token, prevSettledEpoch, settleUpTo, prevBalance, amount);
+                (uint256 curr, uint256 end) = script.memoryIter();
+                _dispatch(Auth({authenticated: operator, permissions: ALL, token: token /*stream: stream*/}), curr, end);
+            } else {
+                address recipient = address(uint160(flags));
+                stream.state = loadedStream;
+                users[recipient].accounts[token].latest.balance += uint128(amount);
+            }
         }
     }
 
+    error Exists();
+
     function createRail(
-        address template,
-        address, // from
-        address, // token
-        uint32, // nonce
-        bytes calldata /*params*/
-    )
-        external
-        payable
-        returns (bytes32 initcodeHash, address railAddress)
-    {
-        assembly ("memory-safe") {
-            mstore(28, caller())
-            calldatacopy(0, 48, 20)
-            calldatacopy(20, 80, 20)
-            calldatacopy(60, 128, 4)
-            let salt := keccak256(0, 64)
-            let start := mload(0x40)
-            let size := extcodesize(template)
-            extcodecopy(template, start, 0, size)
-            // TODO params
-            initcodeHash := keccak256(start, size)
-            railAddress := create2(callvalue(), start, size, salt)
-        }
+        address from,
+        uint192 flags,
+        uint256 token
+    ) external {
+        Stream storage stream = msg.sender.deriveRail(from, flags).getStream(token);
+        require(stream.state.settledUpTo == 0, Exists());
+        require(users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender));
+        stream.state.settledUpTo = uint40(block.number);
     }
 
     struct Auth {
         address authenticated;
         Permissions permissions;
+        uint256 token;
     }
     error Unauthorized(address user, address operator);
-    error BadSalt(address calculated, address expected);
 
     /**
      * Batch functions
@@ -239,12 +209,12 @@ contract FilecoinPayV2 is IERC6909 {
 
     function executeScript(bytes calldata script) external {
         (uint256 curr, uint256 end) = script.calldataIter();
-        _dispatch(Auth({authenticated: msg.sender, permissions: ALL}), curr, end);
+        _dispatch(Auth({authenticated: msg.sender, permissions: ALL, token: 0}), curr, end);
     }
 
     function executeScript(Permissions scope, bytes calldata script) external {
         (uint256 curr, uint256 end) = script.calldataIter();
-        _dispatch(Auth({authenticated: msg.sender, permissions: scope}), curr, end);
+        _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
     }
 
     function _dispatch(Auth memory auth, uint256 curr, uint256 end) internal returns (uint256) {
@@ -259,7 +229,8 @@ contract FilecoinPayV2 is IERC6909 {
                             return curr;
                         } else {
                             // Ops.PUSH
-                            Auth memory next = Auth({authenticated: auth.authenticated, permissions: auth.permissions});
+                            // TODO(perf): mcopy
+                            Auth memory next = Auth({authenticated: auth.authenticated, permissions: auth.permissions, token: auth.token});
                             curr = _dispatch(next, curr, end);
                         }
                     } else {
@@ -280,19 +251,7 @@ contract FilecoinPayV2 is IERC6909 {
                     }
                 } else {
                     if (method < 6) {
-                        if (method == Ops.AUTHRAIL) {
-                            // Ops.AUTHRAIL
-                            address rail;
-                            address from;
-                            (rail, from,,, curr) = curr.nextRailInfo();
-                            require(rail == auth.authenticated, BadSalt(rail, auth.authenticated));
-                            // TODO: determine whether to allow operator revocation
-                            // users[from].authorizations[operator].permissions
-                            // users[from].authorizations[rail].permissions
-                            auth.authenticated = from;
-                        } else {
-                            // 5
-                        }
+                        // 4 5
                     } else {
                         // 6 7
                     }
