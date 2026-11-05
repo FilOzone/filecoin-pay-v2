@@ -5,6 +5,7 @@ uint256 constant POP = 0;
 uint256 constant PUSH = 1;
 uint256 constant RESET = 2;
 uint256 constant SUDO = 3;
+uint256 constant SETTOKEN = 4;
 uint256 constant CREATERAIL = 5;
 uint256 constant DEPOSIT = 6;
 uint256 constant DEPOSITTO = 7;

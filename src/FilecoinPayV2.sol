@@ -6,7 +6,9 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/FilecoinPayOps.sol" as Ops;
-import {ALL, CREATE_RAIL, NONE, Permissions} from "./lib/Permissions.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+
+import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
@@ -14,6 +16,7 @@ contract FilecoinPayV2 is IERC6909 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
     using RailIdLibrary for address;
+    using SafeTransferLib for address;
 
     struct Authorization {
         Permissions permissions;
@@ -143,10 +146,32 @@ contract FilecoinPayV2 is IERC6909 {
         return true;
     }
 
+    function deposit() public payable {
+        unchecked {
+            users[msg.sender].accounts[0].latest.balance += uint128(msg.value);
+        }
+    }
 
-    function settleRail(
-        address operator, address from, uint192 flags, uint256 token
-    )
+    function depositTo(address recipient) public payable {
+        unchecked {
+            users[recipient].accounts[0].latest.balance += uint128(msg.value);
+        }
+    }
+
+    function deposit(address token, uint256 amount) external {
+        _deposit(uint256(uint160(token)), msg.sender, amount);
+    }
+
+    function depositTo(address token, address recipient, uint256 amount) external {
+        _depositTo(uint256(uint160(token)), msg.sender, recipient, amount);
+    }
+
+    function authorize(address operator, Permissions permissions) external {
+        users[msg.sender].authorizations[operator].permissions = permissions;
+        emit OperatorSet(msg.sender, operator, permissions.isOperator());
+    }
+
+    function settleRail(address operator, address from, uint192 flags, uint256 token)
         external
         returns (uint256 amount)
     {
@@ -172,9 +197,18 @@ contract FilecoinPayV2 is IERC6909 {
                 stream.state = loadedStream;
                 // TODO determine whether to allow separate validator
                 // validator = address(uint160(operator))
-                bytes memory script = IRailV2(operator).settleRail(railId, token, prevSettledEpoch, settleUpTo, prevBalance, amount);
+                bytes memory script =
+                    IRailV2(operator).settleRail(railId, token, prevSettledEpoch, settleUpTo, prevBalance, amount);
                 (uint256 curr, uint256 end) = script.memoryIter();
-                _dispatch(Auth({authenticated: operator, permissions: ALL, token: token /*stream: stream*/}), curr, end);
+                _dispatch(
+                    Auth({
+                        authenticated: operator,
+                        permissions: ALL,
+                        token: token /*stream: stream*/
+                    }),
+                    curr,
+                    end
+                );
             } else {
                 address recipient = address(uint160(flags));
                 stream.state = loadedStream;
@@ -185,14 +219,12 @@ contract FilecoinPayV2 is IERC6909 {
 
     error Exists();
 
-    function createRail(
-        address from,
-        uint192 flags,
-        uint256 token
-    ) external {
+    function createRail(address from, uint192 flags, uint256 token) external {
         Stream storage stream = msg.sender.deriveRail(from, flags).getStream(token);
         require(stream.state.settledUpTo == 0, Exists());
-        require(users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender));
+        require(
+            users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
+        );
         stream.state.settledUpTo = uint40(block.number);
     }
 
@@ -202,6 +234,36 @@ contract FilecoinPayV2 is IERC6909 {
         uint256 token;
     }
     error Unauthorized(address user, address operator);
+
+    function _duplicate(Auth memory auth) internal pure returns (Auth memory next) {
+        assembly ("memory-safe") {
+            next := mload(0x40)
+            mcopy(next, auth, 0x60)
+            mstore(0x40, add(next, 0x60))
+        }
+    }
+
+    function _copy(Auth memory dst, Auth memory src) internal pure {
+        assembly ("memory-safe") {
+            mcopy(dst, src, 0x60)
+        }
+    }
+
+    function _deposit(uint256 token, address owner, uint256 amount) internal {
+        unchecked {
+            users[owner].accounts[token].latest.balance += uint128(amount);
+        }
+        emit Transfer(msg.sender, address(0), owner, token, amount);
+        address(uint160(token)).safeTransferFrom(owner, address(this), amount);
+    }
+
+    function _depositTo(uint256 token, address from, address recipient, uint256 amount) internal {
+        unchecked {
+            users[recipient].accounts[token].latest.balance += uint128(amount);
+        }
+        emit Transfer(msg.sender, address(0), recipient, token, amount);
+        address(uint160(token)).safeTransferFrom(from, address(this), amount);
+    }
 
     /**
      * Batch functions
@@ -217,10 +279,20 @@ contract FilecoinPayV2 is IERC6909 {
         _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
     }
 
-    function _dispatch(Auth memory auth, uint256 curr, uint256 end) internal returns (uint256) {
+    function depositWithScript(Permissions scope, bytes calldata script) external payable {
+        deposit();
+        (uint256 curr, uint256 end) = script.calldataIter();
+        _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
+    }
+
+    function _dispatch(Auth memory startingAuth, uint256 curr, uint256 end) internal returns (uint256) {
+        Auth memory auth = _duplicate(startingAuth);
         while (curr < end) {
             uint256 method;
             (method, curr) = curr.nextByte();
+
+            // switch(method)
+
             if (method < 8) {
                 if (method < 4) {
                     if (method < 2) {
@@ -229,15 +301,12 @@ contract FilecoinPayV2 is IERC6909 {
                             return curr;
                         } else {
                             // Ops.PUSH
-                            // TODO(perf): mcopy
-                            Auth memory next = Auth({authenticated: auth.authenticated, permissions: auth.permissions, token: auth.token});
-                            curr = _dispatch(next, curr, end);
+                            curr = _dispatch(auth, curr, end);
                         }
                     } else {
                         if (method == Ops.RESET) {
                             // Ops.RESET
-                            auth.authenticated = msg.sender;
-                            auth.permissions = ALL;
+                            _copy(auth, startingAuth);
                         } else {
                             // Ops.SUDO
                             address who;
@@ -251,9 +320,31 @@ contract FilecoinPayV2 is IERC6909 {
                     }
                 } else {
                     if (method < 6) {
-                        // 4 5
+                        if (method == Ops.SETTOKEN) {
+                            // Ops.SETTOKEN
+                            address token;
+                            (token, curr) = curr.nextAddress();
+                            auth.token = uint256(uint160(token));
+                        } else {
+                            // 5
+                        }
                     } else {
-                        // 6 7
+                        uint256 amount;
+                        (amount, curr) = curr.nextU256();
+                        if (method == Ops.DEPOSIT) {
+                            // Ops.DEPOSIT
+                            require(auth.permissions & DEPOSIT != NONE, Unauthorized(auth.authenticated, msg.sender));
+                            _deposit(auth.token, auth.authenticated, amount);
+                        } else {
+                            // Ops.DEPOSITTO
+                            require(
+                                auth.permissions & DEPOSIT_TO == DEPOSIT_TO,
+                                Unauthorized(auth.authenticated, msg.sender)
+                            );
+                            address recipient;
+                            (recipient, curr) = curr.nextAddress();
+                            _depositTo(auth.token, auth.authenticated, recipient, amount);
+                        }
                     }
                 }
             } else {

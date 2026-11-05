@@ -35,7 +35,8 @@ contract ProvingPeriodRailTest is Test {
         result.modifiedAmount = 100;
         result.settleUpto = ACTIVATION + PROVING_PERIOD;
         vm.roll(result.settleUpto);
-        VALIDATOR.validatePayment.mock(RailId.unwrap(railId), result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
+        VALIDATOR.validatePayment
+            .mock(RailId.unwrap(railId), result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
 
         bytes memory script = rail.settleRail(railId, 0, ACTIVATION, result.settleUpto, 0, result.modifiedAmount);
         assertEq(script, abi.encodePacked(uint8(TRANSFER), RECIPIENT, result.modifiedAmount));

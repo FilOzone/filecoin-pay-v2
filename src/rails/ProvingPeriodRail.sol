@@ -30,9 +30,14 @@ contract ProvingPeriodRail is IRailV2 {
         RECIPIENT = bytes20(recipient);
     }
 
-    function settleRail(RailId railId, uint256 token, uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance)
-        external returns (bytes memory script)
-    {
+    function settleRail(
+        RailId railId,
+        uint256 token,
+        uint256 prevSettledEpoch,
+        uint256 settledUpTo,
+        uint256 prevBalance,
+        uint256 addsBalance
+    ) external returns (bytes memory script) {
         require(msg.sender == PAY, NotPayments());
         uint256 refund = 0;
         uint256 payout = 0;
