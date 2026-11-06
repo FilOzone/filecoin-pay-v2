@@ -18,3 +18,4 @@ uint256 constant UNLOCK = 13;
 uint256 constant INCREASERATE = 14;
 uint256 constant DECREASERATE = 15;
 uint256 constant TRANSFERALL = 16;
+uint256 constant SETTLERAIL = 17;

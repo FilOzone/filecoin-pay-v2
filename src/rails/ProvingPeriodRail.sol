@@ -32,7 +32,6 @@ contract ProvingPeriodRail is IRailV2 {
 
     function settleRail(
         RailId railId,
-        uint256 token,
         uint256 prevSettledEpoch,
         uint256 settledUpTo,
         uint256 prevBalance,

@@ -18,6 +18,8 @@ remappings = [
 severity = ["high", "med", "low", "info", "gas", "code-size"]
 exclude_lints = [
     "arbitrary-send-erc20",
+    "calls-loop",
+    "cyclomatic-complexity",
     "inline-assembly",
     "internal-function-used-once",
     "literal-instead-of-constant",

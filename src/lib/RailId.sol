@@ -3,9 +3,7 @@ pragma solidity ^0.8.37;
 
 uint192 constant FLAG_CALLBACK = 1 << 191;
 
-// TODO(perf) compare to mapping(uint256 token => Stream)
 type RailId is uint256;
-using RailIdLibrary for RailId global;
 
 // TODO(perf): compare to type StreamState is uint256
 struct StreamState {
@@ -19,23 +17,29 @@ struct Stream {
 }
 
 library RailIdLibrary {
-    function deriveRail(address operator, address from, uint192 flags) internal pure returns (RailId id) {
+    function deriveRail(address operator, address from, uint256 token, uint192 flags)
+        internal
+        pure
+        returns (Stream storage stream)
+    {
         assembly ("memory-safe") {
+            let fmp := mload(0x40)
+            // TODO(perf): can probably remove shl
             mstore(0, shl(96, operator))
             mstore(20, shl(96, from))
-            // assumption: top 8 bytes of fmp are zero
-            mstore(40, shl(64, flags))
-            // 72 bytes will not collide with any solidity mapping
+            mstore(40, shl(96, token))
+            mstore(60, shl(64, flags))
+            // 92 bytes will not collide with any solidity mapping
             // So we can use it directly as the storage key
-            id := keccak256(0, 72)
+            stream.slot := keccak256(0, 92)
+            // restore free memory pointer
+            mstore(0x40, fmp)
         }
     }
 
-    function getStream(RailId id, uint256 token) internal pure returns (Stream storage stream) {
+    function getRailId(Stream storage stream) internal pure returns (RailId railId) {
         assembly ("memory-safe") {
-            mstore(0, token)
-            mstore(32, id)
-            stream.slot := keccak256(0, 64)
+            railId := stream.slot
         }
     }
 }

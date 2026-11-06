@@ -9,13 +9,14 @@ import "./lib/FilecoinPayOps.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
-import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
+import {FLAG_CALLBACK, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
 contract FilecoinPayV2 is IERC6909 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
     using RailIdLibrary for address;
+    using RailIdLibrary for Stream;
     using SafeTransferLib for address;
 
     struct Authorization {
@@ -171,12 +172,8 @@ contract FilecoinPayV2 is IERC6909 {
         emit OperatorSet(msg.sender, operator, permissions.isOperator());
     }
 
-    function settleRail(address operator, address from, uint192 flags, uint256 token)
-        external
-        returns (uint256 amount)
-    {
-        RailId railId = operator.deriveRail(from, flags);
-        Stream storage stream = railId.getStream(token);
+    function settleRail(address operator, address from, uint192 flags, uint256 token) public returns (uint256 amount) {
+        Stream storage stream = operator.deriveRail(from, token, flags);
         StreamState memory loadedStream = stream.state;
 
         unchecked {
@@ -198,7 +195,7 @@ contract FilecoinPayV2 is IERC6909 {
                 // TODO determine whether to allow separate validator
                 // validator = address(uint160(operator))
                 bytes memory script =
-                    IRailV2(operator).settleRail(railId, token, prevSettledEpoch, settleUpTo, prevBalance, amount);
+                    IRailV2(operator).settleRail(stream.getRailId(), prevSettledEpoch, settleUpTo, prevBalance, amount);
                 (uint256 curr, uint256 end) = script.memoryIter();
                 _dispatch(
                     Auth({
@@ -217,15 +214,62 @@ contract FilecoinPayV2 is IERC6909 {
         }
     }
 
+    error RailNotCreated();
+
+    function lock(address from, uint192 flags, uint256 token, uint256 amount) external {
+        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        require(stream.state.settledUpTo != 0, RailNotCreated());
+        _lock(stream, users[from].accounts[token], uint128(amount));
+    }
+
+    function _lock(Stream storage stream, Account storage from, uint128 amount) internal {
+        Checkpoint memory latest = from.latest;
+        require(current(latest) >= amount, InsufficientBalance());
+        latest.balance -= amount;
+        from.latest = latest;
+        unchecked {
+            stream.state.available += amount;
+        }
+    }
+
+    function unlock(address from, uint192 flags, uint256 token, uint256 amount) external {
+        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        require(stream.state.settledUpTo != 0, RailNotCreated());
+        Account storage from = users[from].accounts[token];
+        _unlock(stream, from, uint128(amount));
+    }
+
+    function _unlock(Stream storage stream, Account storage from, uint128 amount) internal {
+        from.latest.balance += amount;
+        stream.state.available -= amount;
+    }
+
+    function modifyRate(address from, uint192 flags, uint256 token, uint256 rate) external {
+        settleRail(msg.sender, from, flags, token);
+
+        // TODO(perf): this duplicates the deriveRail hashing
+        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        require(stream.state.settledUpTo != 0, RailNotCreated());
+        Account storage from = users[from].accounts[token];
+        _modifyRate(stream, uint88(rate));
+    }
+
+    error Behind();
+
+    function _modifyRate(Stream storage stream, uint88 rate) internal {
+        require(stream.state.settledUpTo == block.number, Behind());
+        stream.state.incomingRate = rate;
+    }
+
     error Exists();
 
     function createRail(address from, uint192 flags, uint256 token) external {
-        Stream storage stream = msg.sender.deriveRail(from, flags).getStream(token);
-        require(stream.state.settledUpTo == 0, Exists());
+        StreamState storage state = msg.sender.deriveRail(from, token, flags).state;
+        require(state.settledUpTo == 0, Exists());
         require(
             users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
         );
-        stream.state.settledUpTo = uint40(block.number);
+        state.settledUpTo = uint40(block.number);
     }
 
     struct Auth {
@@ -293,62 +337,89 @@ contract FilecoinPayV2 is IERC6909 {
 
             // switch(method)
 
-            if (method < 8) {
-                if (method < 4) {
-                    if (method < 2) {
-                        if (method == Ops.POP) {
-                            // Ops.POP
-                            return curr;
+            if (method < 16) {
+                if (method < 8) {
+                    if (method < 4) {
+                        if (method < 2) {
+                            if (method == Ops.POP) {
+                                // Ops.POP
+                                return curr;
+                            } else {
+                                // Ops.PUSH
+                                curr = _dispatch(auth, curr, end);
+                            }
                         } else {
-                            // Ops.PUSH
-                            curr = _dispatch(auth, curr, end);
+                            if (method == Ops.RESET) {
+                                // Ops.RESET
+                                _copy(auth, startingAuth);
+                            } else {
+                                // Ops.SUDO
+                                address who;
+                                (who, curr) = curr.nextAddress();
+                                Permissions permissions =
+                                    users[who].authorizations[auth.authenticated].permissions & auth.permissions;
+                                require(permissions != NONE, Unauthorized(who, auth.authenticated));
+                                auth.authenticated = who;
+                                auth.permissions = permissions;
+                            }
                         }
                     } else {
-                        if (method == Ops.RESET) {
-                            // Ops.RESET
-                            _copy(auth, startingAuth);
+                        if (method < 6) {
+                            if (method == Ops.SETTOKEN) {
+                                // Ops.SETTOKEN
+                                address token;
+                                (token, curr) = curr.nextAddress();
+                                auth.token = uint256(uint160(token));
+                            } else {
+                                // 5
+                            }
                         } else {
-                            // Ops.SUDO
-                            address who;
-                            (who, curr) = curr.nextAddress();
-                            Permissions permissions =
-                                users[who].authorizations[auth.authenticated].permissions & auth.permissions;
-                            require(permissions != NONE, Unauthorized(who, auth.authenticated));
-                            auth.authenticated = who;
-                            auth.permissions = permissions;
+                            uint256 amount;
+                            (amount, curr) = curr.nextU256();
+                            if (method == Ops.DEPOSIT) {
+                                // Ops.DEPOSIT
+                                require(
+                                    auth.permissions & DEPOSIT != NONE, Unauthorized(auth.authenticated, msg.sender)
+                                );
+                                _deposit(auth.token, auth.authenticated, amount);
+                            } else {
+                                // Ops.DEPOSITTO
+                                require(
+                                    auth.permissions & DEPOSIT_TO == DEPOSIT_TO,
+                                    Unauthorized(auth.authenticated, msg.sender)
+                                );
+                                address recipient;
+                                (recipient, curr) = curr.nextAddress();
+                                _depositTo(auth.token, auth.authenticated, recipient, amount);
+                            }
                         }
                     }
                 } else {
-                    if (method < 6) {
-                        if (method == Ops.SETTOKEN) {
-                            // Ops.SETTOKEN
-                            address token;
-                            (token, curr) = curr.nextAddress();
-                            auth.token = uint256(uint160(token));
-                        } else {
-                            // 5
-                        }
-                    } else {
-                        uint256 amount;
-                        (amount, curr) = curr.nextU256();
-                        if (method == Ops.DEPOSIT) {
-                            // Ops.DEPOSIT
-                            require(auth.permissions & DEPOSIT != NONE, Unauthorized(auth.authenticated, msg.sender));
-                            _deposit(auth.token, auth.authenticated, amount);
-                        } else {
-                            // Ops.DEPOSITTO
-                            require(
-                                auth.permissions & DEPOSIT_TO == DEPOSIT_TO,
-                                Unauthorized(auth.authenticated, msg.sender)
-                            );
-                            address recipient;
-                            (recipient, curr) = curr.nextAddress();
-                            _depositTo(auth.token, auth.authenticated, recipient, amount);
-                        }
-                    }
+                    // 8 9 10 11 12 13 14 15
                 }
             } else {
-                // 8 9 10 11 12 13 14 15
+                if (method < 24) {
+                    if (method < 20) {
+                        if (method < 18) {
+                            if (method == Ops.TRANSFERALL) {} else {
+                                // Ops.SETTLERAIL
+                                address operator;
+                                address from;
+                                uint192 flags;
+                                (operator, curr) = curr.nextAddress();
+                                (from, curr) = curr.nextAddress();
+                                (flags, curr) = curr.nextU192();
+                                settleRail(operator, from, flags, auth.token);
+                            }
+                        } else {
+                            // 18 19
+                        }
+                    } else {
+                        // 20 21 22 23
+                    }
+                } else {
+                    // 24 25 26 27 28 29 30 31
+                }
             }
         }
         return curr;
