@@ -218,7 +218,8 @@ contract FilecoinPayV2 is IERC6909 {
 
     function lock(address from, uint192 flags, uint256 token, uint256 amount) external {
         Stream storage stream = msg.sender.deriveRail(from, token, flags);
-        require(stream.state.settledUpTo != 0, RailNotCreated());
+        // TODO(perf): this duplicates the read of stream.state
+        require(stream.exists(), RailNotCreated());
         _lock(stream, users[from].accounts[token], uint128(amount));
     }
 
@@ -234,7 +235,8 @@ contract FilecoinPayV2 is IERC6909 {
 
     function unlock(address from, uint192 flags, uint256 token, uint256 amount) external {
         Stream storage stream = msg.sender.deriveRail(from, token, flags);
-        require(stream.state.settledUpTo != 0, RailNotCreated());
+        // TODO(perf): this duplicates the read of stream.state
+        require(stream.exists(), RailNotCreated());
         Account storage from = users[from].accounts[token];
         _unlock(stream, from, uint128(amount));
     }
@@ -263,13 +265,20 @@ contract FilecoinPayV2 is IERC6909 {
 
     error Exists();
 
-    function createRail(address from, uint192 flags, uint256 token) external {
-        StreamState storage state = msg.sender.deriveRail(from, token, flags).state;
-        require(state.settledUpTo == 0, Exists());
+    event RailCreated(
+        address indexed payer, address indexed operator, uint256 indexed token, RailId railId, uint192 flags
+    );
+
+    function createRail(address from, uint192 flags, uint256 token) external returns (RailId railId) {
+        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        require(!stream.exists(), Exists());
         require(
             users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
         );
-        state.settledUpTo = uint40(block.number);
+
+        stream.state.settledUpTo = block.number;
+        railId = stream.getRailId();
+        emit RailCreated(from, msg.sender, token, railId, flags);
     }
 
     struct Auth {

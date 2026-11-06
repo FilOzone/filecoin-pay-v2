@@ -42,4 +42,10 @@ library RailIdLibrary {
             railId := stream.slot
         }
     }
+
+    function exists(Stream storage stream) internal view returns (bool exists) {
+        assembly ("memory-safe") {
+            exists := iszero(iszero(sload(stream.slot)))
+        }
+    }
 }
