@@ -23,17 +23,16 @@ library RailIdLibrary {
         returns (Stream storage stream)
     {
         assembly ("memory-safe") {
-            let fmp := mload(0x40)
-            // TODO(perf): can probably remove shl
-            mstore(0, shl(96, operator))
-            mstore(20, shl(96, from))
-            mstore(40, shl(96, token))
-            mstore(60, shl(64, flags))
+            let fmp := mload(64)
+            mstore(64, flags)
+            mstore(40, token)
+            mstore(20, from)
+            mstore(0, operator)
             // 84 bytes will not collide with any solidity mapping
             // So we can use it directly as the storage key
-            stream.slot := keccak256(0, 84)
+            stream.slot := keccak256(12, 84)
             // restore free memory pointer
-            mstore(0x40, fmp)
+            mstore(64, fmp)
         }
     }
 
