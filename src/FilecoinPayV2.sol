@@ -252,8 +252,8 @@ contract FilecoinPayV2 is IERC6909 {
 
         // TODO(perf): this duplicates the deriveRail hashing
         Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        // TODO(perf): this duplicates the rail sload
         require(stream.state.settledUpTo != 0, RailNotCreated());
-        Account storage from = users[from].accounts[token];
         _modifyRate(stream, uint88(rate));
     }
 
@@ -262,6 +262,20 @@ contract FilecoinPayV2 is IERC6909 {
     function _modifyRate(Stream storage stream, uint88 rate) internal {
         require(stream.state.settledUpTo == block.number, Behind());
         stream.state.incomingRate = rate;
+    }
+
+    function _disburse(Stream storage stream, address recipient, uint256 token, uint128 amount) internal {
+        stream.state.available -= amount;
+        unchecked {
+            users[recipient].accounts[token].latest.balance += amount;
+        }
+    }
+
+    function _disburseAll(Stream storage stream, address recipient, uint256 token) internal {
+        unchecked {
+            users[recipient].accounts[token].latest.balance += stream.state.available;
+        }
+        stream.state.available = 0;
     }
 
     error Exists();
