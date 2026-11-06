@@ -29,9 +29,9 @@ library RailIdLibrary {
             mstore(20, shl(96, from))
             mstore(40, shl(96, token))
             mstore(60, shl(64, flags))
-            // 92 bytes will not collide with any solidity mapping
+            // 84 bytes will not collide with any solidity mapping
             // So we can use it directly as the storage key
-            stream.slot := keccak256(0, 92)
+            stream.slot := keccak256(0, 84)
             // restore free memory pointer
             mstore(0x40, fmp)
         }
