@@ -9,7 +9,7 @@ import "./lib/FilecoinPayOps.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
-import {FLAG_CALLBACK, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
+import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
 contract FilecoinPayV2 is IERC6909 {
@@ -169,6 +169,7 @@ contract FilecoinPayV2 is IERC6909 {
 
     function authorize(address operator, Permissions permissions) external {
         users[msg.sender].authorizations[operator].permissions = permissions;
+        // emiting the event unconditionally avoids reading the prior state
         emit OperatorSet(msg.sender, operator, permissions.isOperator());
     }
 
@@ -276,7 +277,7 @@ contract FilecoinPayV2 is IERC6909 {
             users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
         );
 
-        stream.state.settledUpTo = block.number;
+        stream.state.settledUpTo = uint40(block.number);
         railId = stream.getRailId();
         emit RailCreated(from, msg.sender, token, railId, flags);
     }
