@@ -41,6 +41,17 @@ contract FilecoinPayV2 is IERC6909 {
 
     mapping(address owner => User) private users;
 
+    error InvalidToken();
+
+    function _validateToken(uint256 token) internal pure {
+        require(token >> 160 == 0, InvalidToken());
+    }
+
+    modifier validToken(uint256 token) {
+        _validateToken(token);
+        _;
+    }
+
     function current(Checkpoint memory latest) internal view returns (uint256 balance) {
         unchecked {
             balance = uint256(latest.balance);
@@ -96,7 +107,7 @@ contract FilecoinPayV2 is IERC6909 {
     }
 
     /// @inheritdoc IERC6909
-    function approve(address spender, uint256 token, uint256 amount) external returns (bool) {
+    function approve(address spender, uint256 token, uint256 amount) external validToken(token) returns (bool) {
         users[msg.sender].accounts[token].allowance[spender] = amount;
         emit Approval(msg.sender, spender, token, amount);
         return true;
@@ -110,7 +121,7 @@ contract FilecoinPayV2 is IERC6909 {
     error InsufficientBalance();
 
     /// @inheritdoc IERC6909
-    function transfer(address recipient, uint256 token, uint256 amount) external returns (bool) {
+    function transfer(address recipient, uint256 token, uint256 amount) external validToken(token) returns (bool) {
         Account storage spender = users[msg.sender].accounts[token];
         Checkpoint memory spenderBalance = spender.latest;
         require(current(spenderBalance) >= amount, InsufficientBalance());
@@ -127,7 +138,11 @@ contract FilecoinPayV2 is IERC6909 {
     }
 
     /// @inheritdoc IERC6909
-    function transferFrom(address owner, address recipient, uint256 token, uint256 amount) external returns (bool) {
+    function transferFrom(address owner, address recipient, uint256 token, uint256 amount)
+        external
+        validToken(token)
+        returns (bool)
+    {
         User storage from = users[owner];
         Account storage debit = from.accounts[token];
         if (!from.authorizations[msg.sender].permissions.isOperator()) {
@@ -173,8 +188,19 @@ contract FilecoinPayV2 is IERC6909 {
         emit OperatorSet(msg.sender, operator, permissions.isOperator());
     }
 
-    function settleRail(address operator, address from, uint192 flags, uint256 token) public returns (uint256 amount) {
-        Stream storage stream = operator.deriveRail(from, token, flags);
+    function settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
+        external
+        validToken(token)
+        returns (uint256 amount)
+    {
+        return _settleRail(operator, from, recipient, nonce, token);
+    }
+
+    function _settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
+        internal
+        returns (uint256 amount)
+    {
+        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
         StreamState memory loadedStream = stream.state;
 
         unchecked {
@@ -188,12 +214,10 @@ contract FilecoinPayV2 is IERC6909 {
             loadedStream.settledUpTo = uint40(settleUpTo);
 
             amount = blocks * loadedStream.incomingRate;
-            if (flags & FLAG_CALLBACK != 0) {
+            if (nonce & FLAG_CALLBACK != 0) {
                 uint256 prevBalance = uint256(loadedStream.available);
                 loadedStream.available = uint128(prevBalance + amount);
                 stream.state = loadedStream;
-                // TODO determine whether to allow separate validator
-                // validator = address(uint160(operator))
                 bytes memory script =
                     IRailV2(operator).settleRail(stream.getRailId(), prevSettledEpoch, settleUpTo, prevBalance, amount);
                 (uint256 curr, uint256 end) = script.memoryIter();
@@ -207,7 +231,6 @@ contract FilecoinPayV2 is IERC6909 {
                     end
                 );
             } else {
-                address recipient = address(uint160(flags));
                 stream.state = loadedStream;
                 users[recipient].accounts[token].latest.balance += uint128(amount);
                 emit Transfer(operator, from, recipient, token, amount);
@@ -217,8 +240,11 @@ contract FilecoinPayV2 is IERC6909 {
 
     error RailNotCreated();
 
-    function lock(address from, uint192 flags, uint256 token, uint256 amount) external {
-        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+    function lock(address from, address recipient, uint32 nonce, uint256 token, uint256 amount)
+        external
+        validToken(token)
+    {
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
         // TODO(perf): this duplicates the read of stream.state
         require(stream.exists(), RailNotCreated());
         _lock(stream, users[from].accounts[token], uint128(amount));
@@ -234,8 +260,11 @@ contract FilecoinPayV2 is IERC6909 {
         }
     }
 
-    function unlock(address from, uint192 flags, uint256 token, uint256 amount) external {
-        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+    function unlock(address from, address recipient, uint32 nonce, uint256 token, uint256 amount)
+        external
+        validToken(token)
+    {
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
         // TODO(perf): this duplicates the read of stream.state
         require(stream.exists(), RailNotCreated());
         Account storage from = users[from].accounts[token];
@@ -247,11 +276,14 @@ contract FilecoinPayV2 is IERC6909 {
         stream.state.available -= amount;
     }
 
-    function modifyRate(address from, uint192 flags, uint256 token, uint256 rate) external {
-        settleRail(msg.sender, from, flags, token);
+    function modifyRate(address from, address recipient, uint32 nonce, uint256 token, uint256 rate)
+        external
+        validToken(token)
+    {
+        _settleRail(msg.sender, from, recipient, nonce, token);
 
         // TODO(perf): this duplicates the deriveRail hashing
-        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
         // TODO(perf): this duplicates the rail sload
         require(stream.state.settledUpTo != 0, RailNotCreated());
         _modifyRate(stream, uint88(rate));
@@ -264,7 +296,14 @@ contract FilecoinPayV2 is IERC6909 {
         stream.state.incomingRate = rate;
     }
 
-    function _disburse(Stream storage stream, address operator, address from, address recipient, uint256 token, uint128 amount) internal {
+    function _disburse(
+        Stream storage stream,
+        address operator,
+        address from,
+        address recipient,
+        uint256 token,
+        uint128 amount
+    ) internal {
         stream.state.available -= amount;
         unchecked {
             users[recipient].accounts[token].latest.balance += amount;
@@ -272,7 +311,9 @@ contract FilecoinPayV2 is IERC6909 {
         emit Transfer(operator, from, recipient, token, uint256(amount));
     }
 
-    function _disburseAll(Stream storage stream, address operator, address from, address recipient, uint256 token) internal {
+    function _disburseAll(Stream storage stream, address operator, address from, address recipient, uint256 token)
+        internal
+    {
         uint128 amount = stream.state.available;
         unchecked {
             users[recipient].accounts[token].latest.balance += amount;
@@ -284,11 +325,20 @@ contract FilecoinPayV2 is IERC6909 {
     error Exists();
 
     event RailCreated(
-        address indexed payer, address indexed operator, uint256 indexed token, RailId railId, uint192 flags
+        address indexed payer,
+        address indexed payee,
+        address indexed operator,
+        uint256 token,
+        RailId railId,
+        uint32 nonce
     );
 
-    function createRail(address from, uint192 flags, uint256 token) external returns (RailId railId) {
-        Stream storage stream = msg.sender.deriveRail(from, token, flags);
+    function createRail(address from, address recipient, uint32 nonce, uint256 token)
+        external
+        validToken(token)
+        returns (RailId railId)
+    {
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
         require(!stream.exists(), Exists());
         require(
             users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
@@ -296,7 +346,7 @@ contract FilecoinPayV2 is IERC6909 {
 
         stream.state.settledUpTo = uint40(block.number);
         railId = stream.getRailId();
-        emit RailCreated(from, msg.sender, token, railId, flags);
+        emit RailCreated(from, recipient, msg.sender, token, railId, nonce);
     }
 
     struct Auth {
@@ -432,11 +482,13 @@ contract FilecoinPayV2 is IERC6909 {
                                 // Ops.SETTLERAIL
                                 address operator;
                                 address from;
-                                uint192 flags;
+                                address recipient;
+                                uint32 nonce;
                                 (operator, curr) = curr.nextAddress();
                                 (from, curr) = curr.nextAddress();
-                                (flags, curr) = curr.nextU192();
-                                settleRail(operator, from, flags, auth.token);
+                                (recipient, curr) = curr.nextAddress();
+                                (nonce, curr) = curr.nextU32();
+                                _settleRail(operator, from, recipient, nonce, auth.token);
                             }
                         } else {
                             // 18 19
