@@ -188,7 +188,6 @@ contract FilecoinPayV2 is IERC6909 {
             loadedStream.settledUpTo = uint40(settleUpTo);
 
             amount = blocks * loadedStream.incomingRate;
-            emit Transfer(operator, from, operator, token, amount);
             if (flags & FLAG_CALLBACK != 0) {
                 uint256 prevBalance = uint256(loadedStream.available);
                 loadedStream.available = uint128(prevBalance + amount);
@@ -211,6 +210,7 @@ contract FilecoinPayV2 is IERC6909 {
                 address recipient = address(uint160(flags));
                 stream.state = loadedStream;
                 users[recipient].accounts[token].latest.balance += uint128(amount);
+                emit Transfer(operator, from, recipient, token, amount);
             }
         }
     }
@@ -264,18 +264,21 @@ contract FilecoinPayV2 is IERC6909 {
         stream.state.incomingRate = rate;
     }
 
-    function _disburse(Stream storage stream, address recipient, uint256 token, uint128 amount) internal {
+    function _disburse(Stream storage stream, address operator, address from, address recipient, uint256 token, uint128 amount) internal {
         stream.state.available -= amount;
         unchecked {
             users[recipient].accounts[token].latest.balance += amount;
         }
+        emit Transfer(operator, from, recipient, token, uint256(amount));
     }
 
-    function _disburseAll(Stream storage stream, address recipient, uint256 token) internal {
+    function _disburseAll(Stream storage stream, address operator, address from, address recipient, uint256 token) internal {
+        uint128 amount = stream.state.available;
         unchecked {
-            users[recipient].accounts[token].latest.balance += stream.state.available;
+            users[recipient].accounts[token].latest.balance += amount;
         }
         stream.state.available = 0;
+        emit Transfer(operator, from, recipient, token, uint256(amount));
     }
 
     error Exists();
