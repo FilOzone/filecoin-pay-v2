@@ -1,6 +1,7 @@
 # foundry
 out/
 cache/
+snapshots/
 
 # VIM
 *.swp
