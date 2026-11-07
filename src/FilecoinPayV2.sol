@@ -333,6 +333,8 @@ contract FilecoinPayV2 is IERC6909 {
         uint32 nonce
     );
 
+    /// @param nonce high bit is FLAG_CALLBACK, settling through IRailV2 callbacks rather than to
+    /// recipient; the low 31 bits distinguish rails sharing the other arguments
     function createRail(address from, address recipient, uint32 nonce, uint256 token)
         external
         validToken(token)
