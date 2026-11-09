@@ -50,4 +50,10 @@ library RailIdLibrary {
             exists := iszero(iszero(sload(stream.slot)))
         }
     }
+
+    function init(Stream storage stream) internal {
+        assembly ("memory-safe") {
+            sstore(stream.slot, shl(128, number()))
+        }
+    }
 }

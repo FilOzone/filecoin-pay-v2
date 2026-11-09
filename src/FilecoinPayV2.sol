@@ -346,7 +346,7 @@ contract FilecoinPayV2 is IERC6909 {
             users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
         );
 
-        stream.state.settledUpTo = uint40(block.number);
+        stream.init();
         railId = stream.getRailId();
         emit RailCreated(from, recipient, msg.sender, token, railId, nonce);
     }
