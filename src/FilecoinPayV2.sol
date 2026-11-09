@@ -8,11 +8,12 @@ import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/FilecoinPayOps.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {Extsload} from "./Extsload.sol";
 import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
-contract FilecoinPayV2 is IERC6909 {
+contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
     using RailIdLibrary for address;

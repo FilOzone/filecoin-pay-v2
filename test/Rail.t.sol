@@ -4,10 +4,12 @@ pragma solidity ^0.8.37;
 import {Test} from "forge-std/Test.sol";
 
 import {CREATE_RAIL} from "../src/lib/Permissions.sol";
-import {RailId} from "../src/lib/RailId.sol";
+import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
 contract RailTest is Test {
+    using RailIdLibrary for FilecoinPayV2;
+
     FilecoinPayV2 internal payments;
 
     function setUp() public {
@@ -40,6 +42,11 @@ contract RailTest is Test {
         emit FilecoinPayV2.RailCreated(alice, bob, address(this), token, expectedRailId, nonce);
         RailId rail = payments.createRail(alice, bob, nonce, token);
         assertEq(RailId.unwrap(rail), RailId.unwrap(expectedRailId));
+
+        StreamState memory state = payments.getRail(rail);
+        assertEq(state.incomingRate, 0);
+        assertEq(state.settledUpTo, vm.getBlockNumber());
+        assertEq(state.available, 0);
 
         vm.expectRevert(FilecoinPayV2.Exists.selector);
         payments.createRail(alice, bob, nonce, token);

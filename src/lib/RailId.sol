@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
+import {IExtsload} from "../interfaces/IExtsload.sol";
+
 uint32 constant FLAG_CALLBACK = 1 << 31;
 
 type RailId is uint256;
@@ -43,6 +45,13 @@ library RailIdLibrary {
         assembly ("memory-safe") {
             railId := stream.slot
         }
+    }
+
+    function getRail(IExtsload payments, RailId railId) internal view returns (StreamState memory state) {
+        uint256 streamInfo = uint256(payments.extsload(bytes32(RailId.unwrap(railId))));
+        state.incomingRate = uint88(streamInfo >> 168);
+        state.settledUpTo = uint40(streamInfo << 88 >> 216);
+        state.available = uint128(streamInfo & type(uint128).max);
     }
 
     function exists(Stream storage stream) internal view returns (bool exists) {
