@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
-import {DEPOSIT, POP, PUSH, SETTOKEN, SUDO} from "../src/lib/FilecoinPayOps.sol";
+import {DEPOSIT, POP, PUSH, SETTOKEN, SUDO} from "../src/lib/Script.sol";
 import {ALL, NONE, Permissions, TRANSFER} from "../src/lib/Permissions.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";

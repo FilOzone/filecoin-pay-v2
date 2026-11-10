@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-import {ScriptReading} from "../src/lib/Script.sol";
+import {ScriptReading} from "../src/lib/ScriptReading.sol";
 import {Test} from "forge-std/Test.sol";
 
-contract ScriptTest is Test {
+contract ScriptReadingTest is Test {
     using ScriptReading for uint256;
     using ScriptReading for bytes;
 

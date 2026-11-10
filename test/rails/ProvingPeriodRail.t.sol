@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {RailId} from "../../src/lib/RailId.sol";
 import {IValidator} from "../../src/interfaces/IValidator.sol";
-import {TRANSFER, UNLOCK} from "../../src/lib/FilecoinPayOps.sol";
+import {TRANSFER, UNLOCK} from "../../src/lib/Script.sol";
 import {ProvingPeriodRail} from "../../src/rails/ProvingPeriodRail.sol";
 
 import {MockValidator} from "../lib/MockValidator.sol";

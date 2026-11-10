@@ -2,11 +2,16 @@
 pragma solidity ^0.8.37;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
+
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {CREATE_RAIL} from "../src/lib/Permissions.sol";
+import {ScriptBuilder} from "../src/lib/Script.sol";
 import {FLAG_CALLBACK, RailId} from "../src/lib/RailId.sol";
 
 contract CallbacksTest is Test {
+    using ScriptBuilder for bytes;
+
     uint256 private constant NATIVE_TOKEN = 0;
 
     event SettleRailParams(
@@ -40,6 +45,11 @@ contract CallbacksTest is Test {
     function expectNoSettleRail() internal {
         vm.expectEmit(false, false, false, false, address(this), 0);
         emit SettleRailParams(RailId.wrap(0), 0, 0, 0, 0);
+    }
+
+    function expectNativeTransfer(address from, address to, uint256 amount) internal {
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), from, to, NATIVE_TOKEN, amount);
     }
 
     FilecoinPayV2 internal payments;
@@ -86,5 +96,13 @@ contract CallbacksTest is Test {
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 485);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+
+        vm.roll(createdAt + 5);
+        mockScript = ScriptBuilder.newScript().refund(5).disburseAll().build();
+        expectSettleRail(railId, createdAt + 4, createdAt + 5, 15, 5);
+        expectNativeTransfer(alice, bob, 15);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 485);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 15);
     }
 }

@@ -5,13 +5,13 @@ import {IERC165} from "forge-std/interfaces/IERC165.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {IRailV2} from "./interfaces/IRail.sol";
-import "./lib/FilecoinPayOps.sol" as Ops;
+import "./lib/Script.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {Extsload} from "./Extsload.sol";
 import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
-import {ScriptReading} from "./lib/Script.sol";
+import {ScriptReading} from "./lib/ScriptReading.sol";
 
 /// @dev an allowance of INFINITE is never decremented
 uint256 constant INFINITE = type(uint256).max;
@@ -234,7 +234,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     Auth({
                         authenticated: operator,
                         permissions: ALL,
-                        token: token /*stream: stream*/
+                        from: from,
+                        recipient: recipient,
+                        nonce: nonce,
+                        token: token
                     }),
                     curr,
                     end
@@ -278,8 +281,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
         // TODO(perf): this duplicates the read of stream.state
         require(stream.exists(), RailNotCreated());
-        Account storage from = users[from].accounts[token];
-        _unlock(stream, from, uint128(amount));
+        _unlock(stream, users[from].accounts[token], uint128(amount));
     }
 
     function _unlock(Stream storage stream, Account storage from, uint128 amount) internal {
@@ -371,9 +373,8 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         emit Transfer(operator, from, recipient, token, uint256(amount));
     }
 
-    function _disburseAll(Stream storage stream, address operator, address from, address recipient, uint256 token)
-        internal
-    {
+    function _disburseAll(address operator, address from, address recipient, uint32 nonce, uint256 token) internal {
+        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
         uint128 amount = stream.state.available;
         unchecked {
             users[recipient].accounts[token].latest.balance += amount;
@@ -414,6 +415,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     struct Auth {
         address authenticated;
         Permissions permissions;
+        address from;
+        address recipient;
+        uint32 nonce;
         uint256 token;
     }
     error Unauthorized(address user, address operator);
@@ -421,14 +425,14 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     function _duplicate(Auth memory auth) internal pure returns (Auth memory next) {
         assembly ("memory-safe") {
             next := mload(0x40)
-            mcopy(next, auth, 0x60)
-            mstore(0x40, add(next, 0x60))
+            mcopy(next, auth, 0xc0)
+            mstore(0x40, add(next, 0xc0))
         }
     }
 
     function _copy(Auth memory dst, Auth memory src) internal pure {
         assembly ("memory-safe") {
-            mcopy(dst, src, 0x60)
+            mcopy(dst, src, 0xc0)
         }
     }
 
@@ -457,7 +461,13 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             deposit();
         }
         (uint256 curr, uint256 end) = script.calldataIter();
-        _dispatch(Auth({authenticated: msg.sender, permissions: ALL, token: 0}), curr, end);
+        _dispatch(
+            Auth({
+                authenticated: msg.sender, permissions: ALL, from: address(0), recipient: address(0), nonce: 0, token: 0
+            }),
+            curr,
+            end
+        );
     }
 
     function executeScript(Permissions scope, bytes calldata script) external payable {
@@ -465,7 +475,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             deposit();
         }
         (uint256 curr, uint256 end) = script.calldataIter();
-        _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
+        _dispatch(
+            Auth({
+                authenticated: msg.sender,
+                permissions: scope,
+                from: address(0),
+                recipient: address(0),
+                nonce: 0,
+                token: 0
+            }),
+            curr,
+            end
+        );
     }
 
     function _dispatch(Auth memory startingAuth, uint256 curr, uint256 end) internal returns (uint256) {
@@ -534,7 +555,26 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                         }
                     }
                 } else {
-                    // 8 9 10 11 12 13 14 15
+                    if (method < 12) {
+                        // 8 9 10 11
+                    } else {
+                        if (method < 14) {
+                            uint128 amount;
+                            (amount, curr) = curr.nextU128();
+                            Stream storage stream =
+                                auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce);
+                            // TODO(perf): this duplicates the read of stream.state
+                            require(stream.exists(), RailNotCreated());
+                            if (method == Ops.LOCK) {
+                                _lock(stream, users[auth.from].accounts[auth.token], amount);
+                            } else {
+                                // Ops.UNLOCK
+                                _unlock(stream, users[auth.from].accounts[auth.token], amount);
+                            }
+                        } else {
+                            // 14 15
+                        }
+                    }
                 }
             } else {
                 if (method < 24) {
@@ -554,7 +594,11 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 _settleRail(operator, from, recipient, nonce, auth.token);
                             }
                         } else {
-                            // 18 19
+                            if (method == Ops.DISBURSEALL) {
+                                _disburseAll(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
+                            } else {
+                                // 19
+                            }
                         }
                     } else {
                         // 20 21 22 23

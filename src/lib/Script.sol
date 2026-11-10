@@ -1,56 +1,61 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-library ScriptReading {
-    function memoryIter(bytes memory script) internal pure returns (uint256 curr, uint256 end) {
+uint256 constant POP = 0;
+uint256 constant PUSH = 1;
+uint256 constant RESET = 2;
+uint256 constant SUDO = 3;
+uint256 constant SETTOKEN = 4;
+uint256 constant CREATERAIL = 5;
+uint256 constant DEPOSIT = 6;
+uint256 constant DEPOSITTO = 7;
+uint256 constant WITHDRAW = 8;
+uint256 constant WITHDRAWTO = 9;
+uint256 constant TRANSFER = 10;
+uint256 constant TRANSFERFROM = 11;
+uint256 constant LOCK = 12;
+uint256 constant UNLOCK = 13;
+uint256 constant INCREASERATE = 14;
+uint256 constant DECREASERATE = 15;
+uint256 constant TRANSFERALL = 16;
+uint256 constant SETTLERAIL = 17;
+uint256 constant DISBURSEALL = 18;
+
+/// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
+/// @dev Important: do not allocate memory when building scripts
+
+library ScriptBuilder {
+    function newScript() internal pure returns (bytes memory scriptBuilder) {
         assembly ("memory-safe") {
-            curr := add(32, script)
-            end := add(mload(script), curr)
+            scriptBuilder := mload(0x40)
+            mstore(0x40, add(0x20, scriptBuilder))
         }
     }
 
-    function calldataIter(bytes calldata script) internal pure returns (uint256 curr, uint256 end) {
+    function build(bytes memory scriptBuilder) internal pure returns (bytes memory script) {
+        script = scriptBuilder;
         assembly ("memory-safe") {
-            curr := mload(0x40)
-            let size := script.length
-            calldatacopy(curr, script.offset, size)
-            end := add(size, curr)
-            mstore(0x40, end)
+            mstore(script, sub(mload(0x40), add(0x20, script)))
         }
     }
 
-    function nextByte(uint256 curr) internal pure returns (uint256 next, uint256 newCurr) {
+    // the bool return values ensure the evaluation order is deterministic
+
+    function disburseAll(bytes memory scriptBuilder) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
-            next := shr(248, mload(curr))
-            newCurr := add(curr, 1)
+            let buf := mload(0x40)
+            mstore8(buf, DISBURSEALL)
+            mstore(0x40, add(1, buf))
         }
+        return scriptBuilder;
     }
 
-    function nextAddress(uint256 curr) internal pure returns (address next, uint256 newCurr) {
+    function refund(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
-            next := shr(96, mload(curr))
-            newCurr := add(curr, 20)
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, UNLOCK), shl(120, amount)))
+            mstore(0x40, add(17, buf))
         }
-    }
-
-    function nextU32(uint256 curr) internal pure returns (uint32 next, uint256 newCurr) {
-        assembly ("memory-safe") {
-            next := shr(224, mload(curr))
-            newCurr := add(curr, 4)
-        }
-    }
-
-    function nextU256(uint256 curr) internal pure returns (uint256 next, uint256 newCurr) {
-        assembly ("memory-safe") {
-            next := mload(curr)
-            newCurr := add(curr, 32)
-        }
-    }
-
-    function nextBytes32(uint256 curr) internal pure returns (bytes32 next, uint256 newCurr) {
-        assembly ("memory-safe") {
-            next := mload(curr)
-            newCurr := add(curr, 32)
-        }
+        return scriptBuilder;
     }
 }
