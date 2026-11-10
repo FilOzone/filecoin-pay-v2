@@ -90,7 +90,8 @@ contract RailTest is Test {
         assertEq(state.available, 0);
 
         vm.roll(fiftyAt + 1);
-        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        uint256 settledUpTo = payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(settledUpTo, fiftyAt);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 50);
@@ -105,10 +106,33 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
 
+        state = payments.getRail(rail);
+        assertEq(state.incomingRate, 50);
+        assertEq(state.settledUpTo, fiftyAt);
+        assertEq(state.available, 0);
+
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
-        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        settledUpTo = payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(settledUpTo, fiftyAt + 1);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
+
+        state = payments.getRail(rail);
+        assertEq(state.incomingRate, 50);
+        assertEq(state.settledUpTo, fiftyAt + 1);
+        assertEq(state.available, 0);
+
+        vm.roll(fiftyAt + 10);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 450);
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 0);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 500);
+
+        state = payments.getRail(rail);
+        assertEq(state.incomingRate, 0);
+        assertEq(state.settledUpTo, fiftyAt + 10);
+        assertEq(state.available, 0);
     }
 }
