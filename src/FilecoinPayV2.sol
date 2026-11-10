@@ -201,6 +201,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         validToken(token)
         returns (uint256 settledUpTo)
     {
+        // TODO: check exists()
         return _settleRail(operator, from, recipient, nonce, token);
     }
 
@@ -287,6 +288,26 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         }
         // TODO(doc): defined error instead of stdErr.arithmeticError
         stream.state.available -= amount;
+    }
+
+    function terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) public {
+        require(msg.sender == operator || msg.sender == from, Unauthorized(from, msg.sender));
+        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
+        require(stream.exists(), RailNotCreated());
+
+        uint256 settledUpTo = _settleRail(operator, from, recipient, nonce, token);
+
+        StreamState memory state = stream.state;
+        Account storage account = users[from].accounts[token];
+        Checkpoint memory scratch = account.latest;
+        // FIXME: lockup should go toward any debt before being refunded to the user
+        unchecked {
+            scratch.balance += state.available - uint128(scratch.drainRate) * uint128(settledUpTo  - scratch.modifiedEpoch);
+            scratch.drainRate -= state.incomingRate;
+            scratch.modifiedEpoch = uint40(settledUpTo);
+        }
+        account.latest = scratch;
+        delete stream.state;
     }
 
     error Behind();
@@ -528,6 +549,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 (from, curr) = curr.nextAddress();
                                 (recipient, curr) = curr.nextAddress();
                                 (nonce, curr) = curr.nextU32();
+                                // TODO: check exists()
                                 _settleRail(operator, from, recipient, nonce, auth.token);
                             }
                         } else {

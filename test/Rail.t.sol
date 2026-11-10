@@ -10,6 +10,7 @@ import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
 contract RailTest is Test {
+    using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
 
     FilecoinPayV2 internal payments;
@@ -30,6 +31,8 @@ contract RailTest is Test {
         payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
         vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
 
         // operator(20) from(20) token(20) recipient(20) nonce(4)
@@ -192,5 +195,75 @@ contract RailTest is Test {
         payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 25);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 475);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 25);
+    }
+
+    function testDebt() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(alice, address(0), alice, NATIVE_TOKEN, 100);
+        payments.deposit{value: 100}();
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100);
+
+        vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.OperatorSet(alice, address(this), false);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        RailId expectedRailId = RailIdLibrary.getRailId(address(this).deriveRail(alice, bob, NATIVE_TOKEN, nonce));
+        emit FilecoinPayV2.RailCreated(alice, bob, address(this), NATIVE_TOKEN, expectedRailId, nonce);
+        RailId railId = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(RailId.unwrap(railId), RailId.unwrap(expectedRailId));
+
+        uint256 fiftyAt = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 40);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 30);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 70);
+
+        vm.roll(fiftyAt + 1);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 30);
+
+        vm.roll(fiftyAt + 2);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+
+        vm.expectRevert(FilecoinPayV2.Behind.selector);
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 5);
+
+        vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 5);
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 5);
+        payments.disburse(alice, bob, nonce, NATIVE_TOKEN, 5);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 5);
+
+        payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 20);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 80);
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 5);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
+
+        vm.roll(fiftyAt + 3);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 5);
+
+        vm.roll(fiftyAt + 4);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+
+        vm.roll(fiftyAt + 5);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 10);
+        payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
     }
 }

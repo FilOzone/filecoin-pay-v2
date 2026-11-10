@@ -16,6 +16,7 @@ Permissions constant DEPOSIT = Permissions.wrap(DEPOSIT_U256);
 Permissions constant WITHDRAW = Permissions.wrap(WITHDRAW_U256);
 Permissions constant TRANSFER = Permissions.wrap(TRANSFER_U256);
 Permissions constant CREATE_RAIL = Permissions.wrap(CREATE_RAIL_U256);
+// TODO: consider TERMINATE_RAIL permission
 
 // composite permissions
 uint256 constant NONE_U256 = 0;
