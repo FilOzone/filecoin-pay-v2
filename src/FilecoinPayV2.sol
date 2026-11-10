@@ -13,6 +13,9 @@ import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Pe
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/Script.sol";
 
+/// @dev an allowance of INFINITE is never decremented
+uint256 constant INFINITE = type(uint256).max;
+
 contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
@@ -147,8 +150,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         User storage from = users[owner];
         Account storage debit = from.accounts[token];
         if (!from.authorizations[msg.sender].permissions.isOperator()) {
-            // TODO handle "infinite" allowance
-            debit.allowance[msg.sender] -= amount;
+            uint256 approved = debit.allowance[msg.sender];
+            if (approved != INFINITE) {
+                debit.allowance[msg.sender] = approved - amount;
+            }
         }
         Checkpoint memory spenderBalance = debit.latest;
         require(current(spenderBalance) >= amount, InsufficientBalance());
