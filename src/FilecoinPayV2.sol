@@ -256,7 +256,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     function _lock(Stream storage stream, Account storage from, uint128 amount) internal {
         Checkpoint memory latest = from.latest;
         require(current(latest) >= amount, InsufficientBalance());
-        latest.balance -= amount;
+        unchecked {
+            latest.balance -= amount;
+        }
         from.latest = latest;
         unchecked {
             stream.state.available += amount;
@@ -275,7 +277,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     function _unlock(Stream storage stream, Account storage from, uint128 amount) internal {
-        from.latest.balance += amount;
+        unchecked {
+            from.latest.balance += amount;
+        }
+        // TODO(doc): defined error instead of stdErr.arithmeticError
         stream.state.available -= amount;
     }
 
@@ -310,6 +315,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             }
         }
         account.latest = previous;
+    }
+
+    function disburse(address from, address recipient, uint32 nonce, uint256 token, uint128 amount)
+        external
+        validToken(token)
+    {
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
+        stream.state.available -= amount;
+        unchecked {
+            users[recipient].accounts[token].latest.balance += amount;
+        }
+        emit Transfer(msg.sender, from, recipient, token, uint256(amount));
     }
 
     function _disburse(

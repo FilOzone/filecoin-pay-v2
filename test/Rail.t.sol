@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
+import {stdError} from "forge-std/StdError.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
@@ -124,6 +125,9 @@ contract RailTest is Test {
         assertEq(state.available, 0);
 
         vm.roll(fiftyAt + 10);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
+
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 450);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 0);
@@ -134,5 +138,59 @@ contract RailTest is Test {
         assertEq(state.incomingRate, 0);
         assertEq(state.settledUpTo, fiftyAt + 10);
         assertEq(state.available, 0);
+    }
+
+    function testLock() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.OperatorSet(alice, address(this), false);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        uint40 createdAt = uint40(vm.getBlockNumber());
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        StreamState memory state = payments.getRail(rail);
+        assertEq(state.incomingRate, 0);
+        assertEq(state.settledUpTo, createdAt);
+        assertEq(state.available, 0);
+
+        vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(alice, address(0), alice, NATIVE_TOKEN, 500);
+        payments.deposit{value: 500}();
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 500);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 50);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 25);
+        payments.disburse(alice, bob, nonce, NATIVE_TOKEN, 25);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 25);
+
+        vm.expectRevert(stdError.arithmeticError);
+        payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 25);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 475);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 25);
     }
 }
