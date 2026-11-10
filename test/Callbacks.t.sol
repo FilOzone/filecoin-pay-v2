@@ -9,7 +9,9 @@ import {FLAG_CALLBACK, RailId} from "../src/lib/RailId.sol";
 contract CallbacksTest is Test {
     uint256 private constant NATIVE_TOKEN = 0;
 
-    event SettleRailParams(RailId railId, uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance);
+    event SettleRailParams(
+        RailId railId, uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance
+    );
 
     bytes internal mockScript;
 
@@ -77,6 +79,12 @@ contract CallbacksTest is Test {
         expectSettleRail(railId, createdAt + 1, createdAt + 2, 0, 5);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 495);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+
+        vm.roll(createdAt + 4);
+        expectSettleRail(railId, createdAt + 2, createdAt + 4, 5, 10);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 485);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
     }
 }
