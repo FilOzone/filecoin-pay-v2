@@ -49,9 +49,9 @@ library RailIdLibrary {
 
     function getRail(IExtsload payments, RailId railId) internal view returns (StreamState memory state) {
         uint256 streamInfo = uint256(payments.extsload(bytes32(RailId.unwrap(railId))));
-        state.incomingRate = uint88(streamInfo >> 168);
-        state.settledUpTo = uint40(streamInfo << 88 >> 216);
-        state.available = uint128(streamInfo & type(uint128).max);
+        state.incomingRate = uint88(streamInfo);
+        state.settledUpTo = uint40(streamInfo >> 88);
+        state.available = uint128(streamInfo >> 128);
     }
 
     function exists(Stream storage stream) internal view returns (bool exists) {
@@ -62,7 +62,7 @@ library RailIdLibrary {
 
     function init(Stream storage stream) internal {
         assembly ("memory-safe") {
-            sstore(stream.slot, shl(128, number()))
+            sstore(stream.slot, shl(88, number()))
         }
     }
 }

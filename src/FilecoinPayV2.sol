@@ -167,12 +167,14 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         unchecked {
             users[msg.sender].accounts[0].latest.balance += uint128(msg.value);
         }
+        emit Transfer(msg.sender, address(0), msg.sender, 0, msg.value);
     }
 
     function depositTo(address recipient) public payable {
         unchecked {
             users[recipient].accounts[0].latest.balance += uint128(msg.value);
         }
+        emit Transfer(msg.sender, address(0), recipient, 0, msg.value);
     }
 
     function deposit(address token, uint256 amount) external {
@@ -192,35 +194,35 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     function settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
         external
         validToken(token)
-        returns (uint256 amount)
+        returns (uint256 settledUpTo)
     {
         return _settleRail(operator, from, recipient, nonce, token);
     }
 
     function _settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
         internal
-        returns (uint256 amount)
+        returns (uint256 settledUpTo)
     {
         Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
         StreamState memory loadedStream = stream.state;
 
         unchecked {
-            uint256 settleUpTo = canSettleTo(users[from].accounts[token].latest);
+            settledUpTo = canSettleTo(users[from].accounts[token].latest);
             uint256 prevSettledEpoch = uint256(loadedStream.settledUpTo);
-            uint256 blocks = settleUpTo - prevSettledEpoch;
+            uint256 blocks = settledUpTo - prevSettledEpoch;
             if (blocks == 0) {
-                return 0;
+                return settledUpTo;
             }
 
-            loadedStream.settledUpTo = uint40(settleUpTo);
+            loadedStream.settledUpTo = uint40(settledUpTo);
 
-            amount = blocks * loadedStream.incomingRate;
+            uint256 amount = blocks * loadedStream.incomingRate;
             if (nonce & FLAG_CALLBACK != 0) {
                 uint256 prevBalance = uint256(loadedStream.available);
                 loadedStream.available = uint128(prevBalance + amount);
                 stream.state = loadedStream;
-                bytes memory script =
-                    IRailV2(operator).settleRail(stream.getRailId(), prevSettledEpoch, settleUpTo, prevBalance, amount);
+                bytes memory script = IRailV2(operator)
+                    .settleRail(stream.getRailId(), prevSettledEpoch, settledUpTo, prevBalance, amount);
                 (uint256 curr, uint256 end) = script.memoryIter();
                 _dispatch(
                     Auth({
@@ -277,24 +279,37 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         stream.state.available -= amount;
     }
 
-    function modifyRate(address from, address recipient, uint32 nonce, uint256 token, uint256 rate)
+    error Behind();
+
+    function modifyRate(address from, address recipient, uint32 nonce, uint256 token, uint88 rate)
         external
         validToken(token)
     {
-        _settleRail(msg.sender, from, recipient, nonce, token);
+        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
+        require(stream.exists(), RailNotCreated());
 
         // TODO(perf): this duplicates the deriveRail hashing
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
-        // TODO(perf): this duplicates the rail sload
-        require(stream.state.settledUpTo != 0, RailNotCreated());
-        _modifyRate(stream, uint88(rate));
-    }
+        // TODO(perf): this duplicates the stream sload
+        uint256 settledUpTo = _settleRail(msg.sender, from, recipient, nonce, token);
+        require(settledUpTo == block.number, Behind());
 
-    error Behind();
-
-    function _modifyRate(Stream storage stream, uint88 rate) internal {
-        require(stream.state.settledUpTo == block.number, Behind());
+        // NOTE: must re-read this because it can change during _settleRail
+        uint88 previousRate = stream.state.incomingRate;
         stream.state.incomingRate = rate;
+
+        Account storage account = users[from].accounts[token];
+        Checkpoint memory previous = account.latest;
+        if (previous.modifiedEpoch != block.number) {
+            unchecked {
+                // NOTE: this cannot underflow
+                previous.balance -= uint128(
+                    (block.number - uint256(previous.modifiedEpoch)) * uint256(previous.drainRate)
+                );
+                previous.modifiedEpoch = uint40(block.number);
+                previous.drainRate += rate - previousRate;
+            }
+        }
+        account.latest = previous;
     }
 
     function _disburse(
@@ -393,18 +408,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
      * Batch functions
      */
 
-    function executeScript(bytes calldata script) external {
+    function executeScript(bytes calldata script) external payable {
+        if (msg.value > 0) {
+            deposit();
+        }
         (uint256 curr, uint256 end) = script.calldataIter();
         _dispatch(Auth({authenticated: msg.sender, permissions: ALL, token: 0}), curr, end);
     }
 
-    function executeScript(Permissions scope, bytes calldata script) external {
-        (uint256 curr, uint256 end) = script.calldataIter();
-        _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
-    }
-
-    function depositWithScript(Permissions scope, bytes calldata script) external payable {
-        deposit();
+    function executeScript(Permissions scope, bytes calldata script) external payable {
+        if (msg.value > 0) {
+            deposit();
+        }
         (uint256 curr, uint256 end) = script.calldataIter();
         _dispatch(Auth({authenticated: msg.sender, permissions: scope, token: 0}), curr, end);
     }
