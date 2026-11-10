@@ -302,7 +302,8 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         Checkpoint memory scratch = account.latest;
         // FIXME: lockup should go toward any debt before being refunded to the user
         unchecked {
-            scratch.balance += state.available - uint128(scratch.drainRate) * uint128(settledUpTo  - scratch.modifiedEpoch);
+            scratch.balance += state.available - uint128(scratch.drainRate)
+            * uint128(settledUpTo - scratch.modifiedEpoch);
             scratch.drainRate -= state.incomingRate;
             scratch.modifiedEpoch = uint40(settledUpTo);
         }
