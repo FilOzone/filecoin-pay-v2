@@ -23,11 +23,14 @@ contract ScriptReadingTest is Test {
         address who;
         (who, curr) = curr.nextAddress();
         assertEq(who, 0x02030405060708090A0B0C0d0E0F104444555566);
-        (u256, curr) = curr.nextU256();
-        assertEq(u256, 0x6677777777777777777777777777777778888888888888888888888888888888);
-        bytes32 b32;
-        (b32, curr) = curr.nextBytes32();
-        assertEq(b32, 0x999999999999999999999aaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbc);
+        uint128 u128;
+        (u128, curr) = curr.nextU128();
+        assertEq(u128, 0x66777777777777777777777777777777);
+        (u128, curr) = curr.nextU128();
+        assertEq(u128, 0x78888888888888888888888888888888);
+        uint32 u32;
+        (u32, curr) = curr.nextU32();
+        assertEq(u32, 0x99999999);
     }
 
     function testMemoryIter() public pure {

@@ -350,12 +350,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         external
         validToken(token)
     {
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
-        stream.state.available -= amount;
-        unchecked {
-            users[recipient].accounts[token].latest.balance += amount;
-        }
-        emit Transfer(msg.sender, from, recipient, token, uint256(amount));
+        _disburse(msg.sender.deriveRail(from, recipient, token, nonce), msg.sender, from, recipient, token, amount);
     }
 
     function _disburse(
@@ -534,8 +529,8 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 // 5
                             }
                         } else {
-                            uint256 amount;
-                            (amount, curr) = curr.nextU256();
+                            uint128 amount;
+                            (amount, curr) = curr.nextU128();
                             if (method == Ops.DEPOSIT) {
                                 // Ops.DEPOSIT
                                 require(
@@ -597,7 +592,17 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                             if (method == Ops.DISBURSEALL) {
                                 _disburseAll(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
                             } else {
-                                // 19
+                                // Ops.DISBURSE
+                                uint128 amount;
+                                (amount, curr) = curr.nextU128();
+                                _disburse(
+                                    auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce),
+                                    auth.authenticated,
+                                    auth.from,
+                                    auth.recipient,
+                                    auth.token,
+                                    amount
+                                );
                             }
                         }
                     } else {

@@ -46,18 +46,4 @@ library ScriptReading {
             newCurr := add(curr, 16)
         }
     }
-
-    function nextU256(uint256 curr) internal pure returns (uint256 next, uint256 newCurr) {
-        assembly ("memory-safe") {
-            next := mload(curr)
-            newCurr := add(curr, 32)
-        }
-    }
-
-    function nextBytes32(uint256 curr) internal pure returns (bytes32 next, uint256 newCurr) {
-        assembly ("memory-safe") {
-            next := mload(curr)
-            newCurr := add(curr, 32)
-        }
-    }
 }

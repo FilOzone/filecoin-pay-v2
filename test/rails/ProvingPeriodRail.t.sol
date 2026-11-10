@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {RailId} from "../../src/lib/RailId.sol";
 import {IValidator} from "../../src/interfaces/IValidator.sol";
-import {TRANSFER, UNLOCK} from "../../src/lib/Script.sol";
+import {DISBURSE} from "../../src/lib/Script.sol";
 import {ProvingPeriodRail} from "../../src/rails/ProvingPeriodRail.sol";
 
 import {MockValidator} from "../lib/MockValidator.sol";
@@ -14,7 +14,6 @@ contract ProvingPeriodRailTest is Test {
     using MockValidator for *;
 
     IValidator private constant VALIDATOR = IValidator(0xBBbBCCcCdddDeEeefffF00001111222233334444);
-    address private constant RECIPIENT = 0x111122223333444455556666777788889999aAaa;
     uint256 private constant ACTIVATION = 1234;
     uint256 private constant PROVING_PERIOD = 2888;
 
@@ -22,7 +21,7 @@ contract ProvingPeriodRailTest is Test {
     RailId private railId;
 
     function setUp() public {
-        rail = new ProvingPeriodRail(VALIDATOR, RECIPIENT);
+        rail = new ProvingPeriodRail(VALIDATOR);
         railId = RailId.wrap(uint256(uint160(address(rail))));
 
         vm.roll(ACTIVATION);
@@ -39,6 +38,6 @@ contract ProvingPeriodRailTest is Test {
             .mock(RailId.unwrap(railId), result.modifiedAmount, ACTIVATION, result.settleUpto, 0, result);
 
         bytes memory script = rail.settleRail(railId, ACTIVATION, result.settleUpto, 0, result.modifiedAmount);
-        assertEq(script, abi.encodePacked(uint8(TRANSFER), RECIPIENT, result.modifiedAmount));
+        assertEq(script, abi.encodePacked(uint8(DISBURSE), uint128(result.modifiedAmount)));
     }
 }

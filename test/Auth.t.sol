@@ -48,10 +48,10 @@ contract AuthTest is Test {
             uint8(SUDO),
             ALICE,
             uint8(DEPOSIT),
-            uint256(100),
+            uint128(100),
             uint8(POP),
             uint8(DEPOSIT),
-            uint256(30)
+            uint128(30)
         );
         vm.prank(BOB);
         vm.startSnapshotGas("executeScript", "pushSudoDepositPopDeposit");

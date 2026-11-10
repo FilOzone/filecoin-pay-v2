@@ -4,17 +4,22 @@ pragma solidity ^0.8.37;
 import {IValidator} from "../interfaces/IValidator.sol";
 import {IRailV2} from "../interfaces/IRail.sol";
 import {RailId} from "../lib/RailId.sol";
+import {ScriptBuilder} from "../lib/Script.sol";
 
 // A rail with a provingPeriod IValidator and a lockupPeriod
 contract ProvingPeriodRail is IRailV2 {
-    bytes20 private immutable RECIPIENT;
+    using ScriptBuilder for bytes;
+
     address private immutable PAY;
     IValidator private immutable VALIDATOR;
     uint256 private immutable PROVING_PERIOD;
 
     uint256 private startEpoch; // TODO: check for off-by-one
+    // TODO: nothing sets the rate or the lockup yet
+    // forge-lint: disable-start(uninitialized-state)
     uint256 private rate;
     uint256 private lockupPeriod;
+    // forge-lint: disable-end(uninitialized-state)
 
     error NotValidator();
     error NotPayments();
@@ -24,10 +29,9 @@ contract ProvingPeriodRail is IRailV2 {
         startEpoch = block.number;
     }
 
-    constructor(IValidator validator, address recipient) {
+    constructor(IValidator validator) {
         PAY = msg.sender;
         VALIDATOR = validator;
-        RECIPIENT = bytes20(recipient);
     }
 
     function settleRail(
@@ -63,23 +67,14 @@ contract ProvingPeriodRail is IRailV2 {
             addsBalance = addsBalance * (result.settleUpto - prevSettledEpoch) / (settledUpTo - prevSettledEpoch);
             refund += addsBalance - result.modifiedAmount;
         }
-        bytes20 recipient = RECIPIENT;
-        assembly ("memory-safe") {
-            mstore(0, 32)
-            let buffer := 64
-            if refund {
-                mstore8(64, 13)
-                mstore(65, refund)
-                buffer := 97
-            }
-            if payout {
-                mstore8(buffer, 10)
-                mstore(add(1, buffer), recipient)
-                mstore(add(21, buffer), payout)
-                buffer := add(53, buffer)
-            }
-            mstore(32, sub(buffer, 64))
-            return(0, buffer)
+        // the settling rail is the script's authorization, so neither op names it
+        script = ScriptBuilder.newScript();
+        if (refund != 0) {
+            script = script.unlock(uint128(refund));
         }
+        if (payout != 0) {
+            script = script.disburse(uint128(payout));
+        }
+        script = script.build();
     }
 }
