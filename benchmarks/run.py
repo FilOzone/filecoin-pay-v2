@@ -9,13 +9,18 @@ aggregating each trace by ref-FVM charge name.
 from __future__ import annotations
 
 import argparse
+import http.client
+import itertools
 import json
 import os
 import subprocess
 import sys
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import ballast
 
 REPO = Path(__file__).resolve().parents[1]
 MNEMONIC = "test test test test test test test test test test test junk"
@@ -67,6 +72,11 @@ class Runner:
         self.rpc_url = args.rpc_url
         self.output = args.output.resolve()
         self.snapshot_path = args.snapshot.resolve()
+        url = urllib.parse.urlsplit(self.rpc_url)
+        opener = http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
+        self.connection = opener(url.hostname, url.port)
+        self.rpc_path = url.path or "/"
+        self.calls = itertools.count(1)
         self.keys = [
             command(
                 ["cast", "wallet", "private-key", "--mnemonic", MNEMONIC, "--mnemonic-index", str(index)]
@@ -86,7 +96,7 @@ class Runner:
                 "chainId": quantity(self.rpc("eth_chainId")),
                 "clientVersion": self.rpc("web3_clientVersion"),
                 "blockGasLimit": quantity(
-                    self.rpc("eth_getBlockByNumber", "latest", "false")["gasLimit"]
+                    self.rpc("eth_getBlockByNumber", "latest", False)["gasLimit"]
                 ),
                 "operator": self.operator,
                 "alice": self.alice,
@@ -100,10 +110,20 @@ class Runner:
     def cast(self, *args: str) -> str:
         return command(["cast", *args])
 
-    def rpc(self, method: str, *params: str) -> Any:
-        return json.loads(self.cast("rpc", "--rpc-url", self.rpc_url, method, *params))
+    def rpc(self, method: str, *params: Any) -> Any:
+        """Kept-alive HTTP rather than `cast rpc`: the prefill alone makes thousands of calls."""
+        self.connection.request(
+            "POST",
+            self.rpc_path,
+            json.dumps({"jsonrpc": "2.0", "id": next(self.calls), "method": method, "params": params}),
+            {"Content-Type": "application/json"},
+        )
+        answer = json.loads(self.connection.getresponse().read())
+        if "error" in answer:
+            raise RuntimeError(f"{method} failed: {json.dumps(answer['error'])}")
+        return answer["result"]
 
-    def try_rpc(self, method: str, *params: str) -> Any | None:
+    def try_rpc(self, method: str, *params: Any) -> Any | None:
         try:
             return self.rpc(method, *params)
         except RuntimeError:
@@ -271,6 +291,39 @@ class Runner:
                 signature="approve(address,uint256)", arguments=[self.pay, str((1 << 256) - 1)],
             )
 
+    def prefill(self) -> None:
+        """Write the ballast accounts, so no measured write walks a nearly empty state tree.
+
+        The first owner is funded by a real deposit, which proves the recorded slots still
+        match the contract's layout; the rest are written into the actor's storage directly,
+        since 2048 transactions take minutes to leave the same bytes behind. Those balances
+        would otherwise be unbacked, so the contract is credited for the ones not deposited.
+        """
+        accounts = ballast.accounts()
+        canary, proof = accounts[0]
+        self.step(
+            "ballast depositTo", self.operator, measured=False, value=ballast.BALANCE,
+            signature="depositTo(address)", arguments=["0x%040x" % canary],
+        )
+        deposited = quantity(self.rpc("eth_getStorageAt", self.pay, hex(proof), "latest"))
+        if deposited != ballast.BALANCE:
+            raise RuntimeError(f"depositTo left {deposited} in the recorded slot of owner {canary}")
+        word = "0x" + ballast.BALANCE.to_bytes(32, "big").hex()
+        for _, slot in accounts[1:]:
+            self.rpc("anvil_setStorageAt", self.pay, hex(slot), word)
+        held = quantity(self.rpc("eth_getBalance", self.pay, "latest"))
+        self.rpc("anvil_setBalance", self.pay, hex(held + (len(accounts) - 1) * ballast.BALANCE))
+        self.result["configuration"]["ballast"] = {
+            "accounts": len(accounts),
+            "prefixBits": ballast.PREFIX_BITS,
+            "balance": ballast.BALANCE,
+        }
+        print(
+            f"prefilled {len(accounts)} accounts, {ballast.PER_BUCKET} in each of"
+            f" {ballast.BUCKETS} KAMT buckets",
+            file=sys.stderr, flush=True,
+        )
+
     def script(self) -> str:
         return "0x" + b"".join(
             (
@@ -360,6 +413,7 @@ class Runner:
     def run(self, isolate: bool) -> None:
         self.deploy()
         self.erc20_setup()
+        self.prefill()
         self.baseline = self.snapshot()
         self.result["configuration"]["isolated"] = isolate
         for name, sequence in self.sequences().items():
