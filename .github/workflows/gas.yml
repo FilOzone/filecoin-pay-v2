@@ -1,0 +1,69 @@
+name: Gas Snapshot
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  # pinned: the Filecoin gas a node charges depends on its ref-FVM and actor versions
+  FVM_ANVIL_REPO: https://github.com/Kubuxu/fvm-anvil
+  FVM_ANVIL_REV: 0fafabdd35392d415cdca121c94f7d15a59cdad3
+  RPC_URL: http://127.0.0.1:18546
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.9.0
+          cache: true
+
+      - name: Restore fvm-anvil
+        id: fvm-anvil
+        uses: actions/cache@v4
+        with:
+          path: ~/fvm-anvil/target/release/fvm-anvil
+          key: fvm-anvil-${{ runner.os }}-${{ env.FVM_ANVIL_REV }}
+
+      - name: Build fvm-anvil
+        if: steps.fvm-anvil.outputs.cache-hit != 'true'
+        run: |
+          git clone "$FVM_ANVIL_REPO" "$HOME/fvm-anvil"
+          cd "$HOME/fvm-anvil"
+          git checkout --detach "$FVM_ANVIL_REV"
+          cargo build --release -p fvm-anvil
+
+      - name: Restore actor bundle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fvm-anvil
+          key: fvm-anvil-actors-${{ runner.os }}-${{ env.FVM_ANVIL_REV }}
+
+      - name: Build
+        run: forge build
+
+      - name: Regenerate snapshot
+        run: |
+          "$HOME/fvm-anvil/target/release/fvm-anvil" --port 18546 >"$RUNNER_TEMP/fvm-anvil.log" 2>&1 &
+          for _ in $(seq 60); do
+            cast chain-id --rpc-url "$RPC_URL" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          cast chain-id --rpc-url "$RPC_URL"
+          benchmarks/run.py --rpc-url "$RPC_URL" --output benchmarks/results/filecoin-gas.json
+
+      - name: Check snapshot
+        run: |
+          git ls-files --error-unmatch .filecoin-gas-snapshot
+          git diff --exit-code -- .filecoin-gas-snapshot
+
+      - name: Node log
+        if: failure()
+        run: tail -50 "$RUNNER_TEMP/fvm-anvil.log" || true

@@ -6,3 +6,6 @@ snapshots/
 # VIM
 *.swp
 *.swo
+
+# benchmarks
+benchmarks/results/
