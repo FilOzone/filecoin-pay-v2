@@ -9,3 +9,4 @@ snapshots/
 
 # benchmarks
 benchmarks/results/
+benchmarks/__pycache__/
