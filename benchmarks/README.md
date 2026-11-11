@@ -1,60 +1,50 @@
 # Filecoin gas benchmark
 
-`forge test` and `vm.snapshotGas` measure EVM gas.
-Filecoin charges FVM gas, which prices actor state-tree access rather than EVM opcodes, so EVM gas does not rank Filecoin costs.
-This benchmark replays the operations the tests exercise as real transactions and records the gas the node charges.
+Filecoin charges FVM gas, which prices actor state-tree access rather than EVM opcodes.
+EVM gas therefore does not rank Filecoin costs, and `forge test` measures only EVM gas.
+This benchmark replays the operations the tests exercise as real transactions and records what the node charges.
 
 [`run.py`](run.py) is node-agnostic: `gasUsed` is EVM gas against `anvil` and Filecoin gas against [`fvm-anvil`](https://github.com/Kubuxu/fvm-anvil).
-Against `fvm-anvil` it additionally records `filecoin_getGasBreakdown` and the complete `filecoin_getGasTrace`, aggregated by ref-FVM charge name.
-Both nodes derive the same accounts from the standard development mnemonic, so one script produces both columns.
+Both nodes derive their accounts from the standard development mnemonic, so one script produces both columns.
+Against `fvm-anvil` it also records `filecoin_getGasBreakdown` and the full `filecoin_getGasTrace`, aggregated by ref-FVM charge name.
 [`report.py`](report.py) renders the tables below from the two result files.
 
-Transaction `gasUsed` includes message and calldata overhead, so these numbers are not comparable to the inner-call figure in `snapshots/executeScript.json`; they are comparable to each other.
+`gasUsed` is per transaction and includes message and calldata overhead, so these numbers compare to each other but not to the inner-call figure in `snapshots/executeScript.json`.
 
 ## Ballast
 
-A freshly deployed contract has an almost empty state tree, and a message that writes into one commits far fewer bytes than the same message would against a contract in use.
-Measuring against that tree understates every number, so the runner prefills accounts before it measures anything.
+A message that writes into a nearly empty state tree commits far fewer bytes than the same message against a contract in use, so the runner prefills 2048 accounts before measuring anything.
 
-`fvm-anvil` stores EVM storage in a KAMT keyed on the unhashed big-endian slot, five bits per level, one entry per bucket.
-Two levels of five bits is 1024 buckets, and [`ballast.py`](ballast.py) fills each of them with exactly two accounts.
-Covering every bucket is the point: a new slot anywhere in the key space then lands in a populated bucket, so a measured write walks the same three nodes wherever keccak puts it, and rail storage benefits as much as account storage.
+`fvm-anvil` keeps EVM storage in a KAMT keyed on the unhashed big-endian slot, five bits per level, one entry per bucket.
+Two levels of five bits is 1024 buckets, and [`ballast.py`](ballast.py) puts exactly two accounts in each.
+Covering every bucket is the point: a new slot anywhere in the key space lands in a populated one, so a measured write walks the same three nodes wherever keccak puts it, and rail storage benefits as much as account storage.
 
-Which owner lands in which bucket is keccak's business, so a set that covers all 1024 buckets takes several times more candidates than it keeps — 12,633 to choose 2048.
-That search runs once; its result is the owner list in [`ballast.txt`](ballast.txt), and the benchmark reads it rather than searching again.
+Keccak decides which owner lands where, so covering all 1024 buckets takes 12,633 candidates to yield 2048.
+That search runs once and its result is the owner list in [`ballast.txt`](ballast.txt).
 
 The first owner is funded by a real `depositTo`, which proves the recorded slots still match the contract's layout.
-The other 2047 are written straight into the actor's storage with `anvil_setStorageAt`, because 2048 transactions take over a minute to leave the same bytes behind.
-A plain deposit writes the account's balance and nothing else, so each patched word is exactly what the transaction would have written; the contract is then credited the balances that were not deposited, so the prefilled accounts are backed.
-
-The effect is large and it is the state tree, not the interpreter.
-A single-slot write commits four blocks totalling about 3.5 KB, against two blocks and about 200 bytes before the prefill, and each further slot in a different bucket adds two blocks and about 1.7 KB.
-`block_persist_storage` charges 334,000 gas per block plus 3,340 per byte, and `block_persist_compute` another 172,000 per block, which accounts for the whole increase.
+The other 2047 are written with `anvil_setStorageAt`, since 2048 transactions take over a minute to leave the same bytes behind.
+A plain deposit writes the balance word and nothing else, so each patched word is what the transaction would have written; the contract is then credited the balances that were not deposited.
 
 The ballast covers `FilecoinPayV2` only.
 `MockERC20` stands in for a real token and keeps a nearly empty tree, so the `setup:` rows and the ERC-20 half of `executeScript` are still measured against one.
 
 ## Isolation
 
-Filecoin gas depends on the storage a message commits, so the runner snapshots the state after deployment, funding, and prefill, and measures each operation from that same baseline, replaying only that operation's own prerequisites and reverting afterwards.
-`evm_revert` restores the state root, epoch, and nonces, so a measurement cannot be moved by an unrelated operation: measuring `authorize(bob, ALL)` at the start of a run and again after 21 other transactions have executed and been reverted gives the same 18,840,936 both times.
+Filecoin gas depends on the storage a message commits, so measuring a sequence linearly would charge each operation for whatever its predecessors wrote.
+The runner instead snapshots the state after deployment, funding, and prefill, then measures each operation from that baseline, replaying only its own prerequisites and reverting afterwards.
+`evm_revert` restores the state root, epoch, and nonces: `authorize(bob, ALL)` measures 18,840,936 both at the start of a run and after 21 other transactions have executed and been reverted.
 
-A measurement is independent of other operations, not of its own prerequisites: `terminateRail` must settle a rail that exists, so it is measured over the storage `createRail` and `modifyRate` wrote.
-Each step records the prerequisites it replayed in `prerequisites`.
+A measurement is independent of other operations, not of its own prerequisites.
+`terminateRail` must settle a rail that exists, so it is measured over the storage `createRail` and `modifyRate` wrote, and each step records what it replayed in `prerequisites`.
 
-Snapshots are consumed by the revert that uses them, and reverting discards the receipts and traces of the blocks it drops, so each revert re-takes its snapshot and every measurement is captured before its revert.
-
-With the ballast in place, `--cumulative` reproduces the isolated numbers exactly, on every step.
-The ordering dependence isolation was built to remove turns out to be an artifact of the empty tree: without the prefill, one linear run inflated `authorize(operator, CREATE_RAIL)` by 21%, because every message there committed a single root block that each new slot made bigger.
-Once the tree is deep, a new slot changes only a leaf, and the interior nodes above it hold fixed-size links.
-Isolation is kept because it guarantees that property rather than assuming it.
-
-Isolation changes no EVM number, and neither does the ballast: the `anvil` column is identical with and without 2048 prefilled accounts, because EVM gas does not price the size of the actor's committed storage.
-That is why measuring in EVM gas never surfaced any of this.
+`--cumulative` measures one linear run instead, and currently reproduces the isolated numbers exactly on every step.
+That is a property of the prefilled tree rather than a guarantee: a new slot changes only a leaf, and the interior nodes above it hold fixed-size links.
+Isolation stays the default because it enforces that independence rather than relying on it.
 
 ## Updating the snapshot
 
-[`.filecoin-gas-snapshot`](../.filecoin-gas-snapshot) is the checked-in record: one sorted `sequence:operation (gas: n)` line per measurement, in the shape of forge's `.gas-snapshot`.
+[`.filecoin-gas-snapshot`](../.filecoin-gas-snapshot) is the checked-in record, one sorted `sequence:operation (gas: n)` line per measurement in the shape of forge's `.gas-snapshot`.
 Regenerate it whenever a change could move Filecoin gas, so the pull request carries the delta as a line diff.
 
 Build the node once, in the `fvm-anvil` checkout:
@@ -74,25 +64,23 @@ benchmarks/run.py --rpc-url http://127.0.0.1:18546 \
 git diff .filecoin-gas-snapshot
 ```
 
-Restart the node before every update.
-Filecoin gas is charged on the size of the storage a message commits, so a node that has already run the suite carries storage that inflates every number; the runner prefills from genesis state and cannot undo that.
+Restart the node first.
+The runner prefills from genesis state and cannot undo storage a previous run left behind, which would inflate every number.
+Do not pass `--cumulative`; it deliberately does not write the snapshot.
 
-Do not pass `--cumulative` when updating.
-It measures one linear run rather than isolating each operation, and deliberately does not write the snapshot.
-
-`ballast.txt` is regenerated only when the storage layout of `users` moves or the ballast parameters change, with `benchmarks/ballast.py`; it takes about ten seconds and rewrites the file in place.
-The runner rejects a list that no longer covers the buckets evenly, and the opening `depositTo` fails loudly if the recorded slots no longer match the contract, so a stale file cannot quietly weaken the measurement.
-
-A diff you did not expect from a contract change usually means the environment moved rather than the code.
-The `fvm-anvil` revision, network version, actor bundle, solc version, and optimizer settings all shift every number; `benchmarks/results/filecoin-gas.json` records the ones a run used, including the ballast parameters.
-
-[`.github/workflows/gas.yml`](../.github/workflows/gas.yml) runs this same regeneration on every push and pull request, and fails if the result differs from the committed file.
-It pins the `fvm-anvil` revision, because the ref-FVM and builtin-actor versions a node runs set every number, so bumping that pin and committing the regenerated snapshot belong in one change.
+[`.github/workflows/gas.yml`](../.github/workflows/gas.yml) runs this same regeneration on every push and pull request and fails if the result differs from the committed file.
+It pins the `fvm-anvil` revision, because the ref-FVM and builtin-actor versions set every number, so bumping that pin and committing the regenerated snapshot belong in one change.
 The job runs on `ubuntu-latest`, which is therefore the environment the committed snapshot has to match.
+
+An unexpected diff more often means the environment moved than the code.
+The `fvm-anvil` revision, network version, actor bundle, solc version, and optimizer settings all shift every number, and `benchmarks/results/filecoin-gas.json` records the ones a run used.
+
+`ballast.txt` is regenerated with `benchmarks/ballast.py`, taking about ten seconds, and only when the storage layout of `users` moves or the ballast parameters change.
+A stale file cannot quietly weaken the measurement: the runner rejects an owner list that no longer covers the buckets evenly, and the opening `depositTo` fails if the recorded slots no longer match the contract.
 
 ## Regenerating the tables below
 
-The tables also need the EVM column, which comes from the same runner against `anvil`, and `report.py`, which reads both result files:
+The tables also need the EVM column, from the same runner against `anvil`:
 
 ```bash
 target/release/fvm-anvil --port 18546      # own terminal, freshly started
@@ -106,7 +94,7 @@ benchmarks/report.py
 ```
 
 The `anvil` run measures EVM gas, which `forge snapshot --isolate` already records, so it leaves the snapshot file alone.
-Everything under `benchmarks/results/` is a generated artifact and is not checked in.
+Everything under `benchmarks/results/` is generated and is not checked in.
 
 ## Results
 
@@ -114,7 +102,8 @@ Recorded at `eaf6149` against `fvm-anvil` `0fafabd` (network version 28, builtin
 The sequences mirror `test/Auth.t.sol`, `test/ERC6909.t.sol`, and `test/Rail.t.sol`; every transaction succeeded and every trace total matched its receipt.
 Two further runs from fresh nodes reproduced every number and every per-charge milligas aggregate exactly.
 
-The six deployment and funding steps precede the prefill and the baseline snapshot, and so are measured linearly against an empty tree; the ERC-6909 and rail operations below them are each measured from that baseline, with 2048 accounts already present.
+The six deployment and funding steps precede the prefill and the baseline snapshot, so they are measured linearly against an empty tree.
+Each ERC-6909 and rail operation below them is measured from the baseline, with 2048 accounts already present.
 
 | Step | EVM gas | Filecoin gas | Ratio |
 | --- | ---: | ---: | ---: |
@@ -166,18 +155,17 @@ The six deployment and funding steps precede the prefill and the baseline snapsh
 
 ## Findings
 
-Filecoin gas is 378-916x EVM gas for the `FilecoinPayV2` operations, and the multiple is largest exactly where EVM gas is smallest: the two cheapest calls in EVM gas, `unlock` and `lock`, carry two of the three largest multiples.
-Across the nine rail operations EVM gas spans 33k-55k, a 1.7x spread, while Filecoin gas spans 18.7M-34.6M, a 1.9x spread.
-The orderings disagree: `unlock` is the cheapest rail operation in EVM gas and the fifth cheapest in Filecoin gas, while `settleRail` is the dearest in EVM gas and only the third dearest in Filecoin gas.
+Filecoin gas is 378-916x EVM gas for the `FilecoinPayV2` operations, and the multiple is largest where EVM gas is smallest: `unlock` and `lock`, the two cheapest calls in EVM gas, carry two of the three largest multiples.
+Across the nine rail operations EVM gas spans 33k-55k and Filecoin gas 18.7M-34.6M, comparable spreads in different orders.
+`unlock` is the cheapest rail operation in EVM gas and the fifth cheapest in Filecoin gas; `settleRail` is the dearest in EVM gas and only the third dearest in Filecoin gas.
 
-State-tree access is 78.1% to 83.4% of every `FilecoinPayV2` call, and EVM interpretation never exceeds 14.0%, so removing opcodes moves at most the `wasm` slice.
-The lever is the number and size of the IPLD blocks a message touches.
-
+State-tree access is 78.1% to 83.4% of every `FilecoinPayV2` call and EVM interpretation never exceeds 14.0%, so removing opcodes moves at most the `wasm` slice.
 What a message pays is set by how many distinct KAMT buckets it writes into, because each one costs a walk of fixed-size interior nodes.
-Operations writing one slot commit three KAMT nodes, those writing two commit five, and `transferFrom`, which writes a balance, an allowance, and a second balance, commits seven: a root, then a level-one node and a leaf per branch.
-`terminateRail` writes three slots but commits six nodes rather than seven, because two of them fall in the same level-one subtree.
+An operation writing one slot commits three KAMT nodes, one writing two commits five, and `transferFrom`, which writes a balance, an allowance, and a second balance, commits seven: a root, then a level-one node and a leaf per branch.
+`terminateRail` writes three slots but commits six rather than seven, two of them falling in the same level-one subtree.
 Co-locating state that is written together is therefore worth more than shrinking it.
 
-Prefilling is what makes any of this visible.
-Against a near-empty contract the same operations cost 2.5-5.9x less, and `transferFrom` is the extreme: 6,131,552 against an empty tree and 35,972,942 once 2048 accounts exist, because each of its three slots goes from sharing one small root block to walking its own branch.
-Ranking also changes — against the empty tree `transferFrom` was the cheapest ERC-6909 write per EVM gas, and with ballast it is the second most expensive operation measured.
+`block_persist_storage` charges 334,000 gas per committed block plus 3,340 per byte, and `block_persist_compute` another 172,000 per block.
+A single-slot write commits four blocks totalling about 3.5 KB, against two blocks of about 200 bytes on an empty tree, which is why the same operations cost 2.5-5.9x less there.
+The `anvil` column is identical with and without the 2048 prefilled accounts, because EVM gas does not price the size of the actor's committed storage.
+That is why measuring in EVM gas never surfaced any of this.
