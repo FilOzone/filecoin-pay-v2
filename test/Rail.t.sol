@@ -181,6 +181,43 @@ contract RailTest is Test {
         payments.executeScript(script);
     }
 
+    function testTransferAllWithDrain() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+        address carol = makeAddr("carol");
+
+        uint32 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        uint256 fiftyAt = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        vm.roll(fiftyAt + 2);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
+
+        bytes memory script = ScriptBuilder.newScript().transferAll(carol).build();
+        vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(alice, alice, carol, NATIVE_TOKEN, 400);
+        payments.executeScript(script);
+
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+        assertEq(payments.balanceOf(carol, NATIVE_TOKEN), 400, "the sweep leaves what the rail accrued");
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 100);
+        assertEq(payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN), fiftyAt + 2);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+    }
+
     function testRateTwiceInOneBlock() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");

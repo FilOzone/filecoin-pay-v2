@@ -88,6 +88,30 @@ contract AuthTest is Test {
         pay.executeScript(ALL & ~TRANSFER, script);
     }
 
+    function testTransferAll() public {
+        vm.prank(ALICE);
+        pay.deposit(address(token), 500);
+
+        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).transferAll(BOB).build();
+
+        vm.prank(ALICE);
+        vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, ALICE, ALICE));
+        pay.executeScript(ALL & ~TRANSFER, script);
+
+        vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit IERC6909.Transfer(ALICE, ALICE, BOB, tokenId, 500);
+        pay.executeScript(script);
+
+        assertEq(pay.balanceOf(ALICE, tokenId), 0);
+        assertEq(pay.balanceOf(BOB, tokenId), 500);
+
+        vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit IERC6909.Transfer(ALICE, ALICE, BOB, tokenId, 0);
+        pay.executeScript(script);
+    }
+
     function testTransferFrom() public {
         vm.prank(ALICE);
         pay.deposit(address(token), 500);

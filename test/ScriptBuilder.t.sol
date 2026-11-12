@@ -19,6 +19,7 @@ import {
     SUDO,
     ScriptBuilder,
     TRANSFER,
+    TRANSFERALL,
     TRANSFERFROM,
     UNLOCK,
     WITHDRAW,
@@ -53,6 +54,7 @@ contract ScriptBuilderTest is Test {
             .unlock(5)
             .increaseRate(MAX_RATE)
             .decreaseRate(7)
+            .transferAll(MAX_ADDRESS)
             .disburseAll()
             .settleRail(MAX_ADDRESS, ALICE, BOB, MAX_NONCE)
             .reset()
@@ -96,6 +98,8 @@ contract ScriptBuilderTest is Test {
                 MAX_RATE,
                 uint8(DECREASERATE),
                 uint88(7),
+                uint8(TRANSFERALL),
+                MAX_ADDRESS,
                 uint8(DISBURSEALL),
                 uint8(SETTLERAIL),
                 MAX_ADDRESS,

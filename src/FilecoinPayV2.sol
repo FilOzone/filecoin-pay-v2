@@ -687,7 +687,16 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                 if (method < 24) {
                     if (method < 20) {
                         if (method < 18) {
-                            if (method == Ops.TRANSFERALL) {} else {
+                            if (method == Ops.TRANSFERALL) {
+                                require(
+                                    auth.permissions & TRANSFER != NONE, Unauthorized(auth.authenticated, msg.sender)
+                                );
+                                address recipient;
+                                (recipient, curr) = curr.nextAddress();
+                                Account storage debit = users[auth.authenticated].accounts[auth.token];
+                                // what the rails have accrued stays behind, as under any other debit
+                                _move(debit, recipient, auth.authenticated, auth.token, current(debit.latest));
+                            } else {
                                 // Ops.SETTLERAIL
                                 address operator;
                                 address from;

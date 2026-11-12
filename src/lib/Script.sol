@@ -215,6 +215,15 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
+    function transferAll(bytes memory scriptBuilder, address recipient) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, TRANSFERALL), shl(88, recipient)))
+            mstore(0x40, add(21, buf))
+        }
+        return scriptBuilder;
+    }
+
     function settleRail(bytes memory scriptBuilder, address operator, address from, address recipient, uint32 nonce)
         internal
         pure
