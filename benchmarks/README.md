@@ -98,45 +98,45 @@ Everything under `benchmarks/results/` is generated and is not checked in.
 
 ## Results
 
-Recorded at `eaf6149` against `fvm-anvil` `0fafabd` (network version 28, builtin actors 18.0.0) and `anvil` v1.9.0.
+Recorded against `fvm-anvil` `0fafabd` (network version 28, builtin actors 18.0.0) and `anvil` v1.9.0, from the contracts this tree builds.
 The sequences mirror `test/Auth.t.sol`, `test/ERC6909.t.sol`, and `test/Rail.t.sol`; every transaction succeeded and every trace total matched its receipt.
-Two further runs from fresh nodes reproduced every number and every per-charge milligas aggregate exactly.
+A further run from a fresh node reproduced every number and every per-charge milligas aggregate exactly.
 
 The six deployment and funding steps precede the prefill and the baseline snapshot, so they are measured linearly against an empty tree.
 Each ERC-6909 and rail operation below them is measured from the baseline, with 2048 accounts already present.
 
 | Step | EVM gas | Filecoin gas | Ratio |
 | --- | ---: | ---: | ---: |
-| `deploy FilecoinPayV2` | 1,371,452 | 39,116,223 | 29x |
-| `deploy MockERC20` | 405,118 | 17,955,350 | 44x |
-| `MockERC20.mint(alice)` | 67,798 | 4,701,734 | 69x |
-| `MockERC20.mint(bob)` | 50,686 | 4,882,833 | 96x |
-| `MockERC20.approve(alice)` | 46,136 | 5,191,567 | 113x |
-| `MockERC20.approve(bob)` | 46,136 | 5,453,488 | 118x |
-| `authorize(bob, ALL)` | 46,195 | 18,840,936 | 408x |
-| `executeScript/pushSudoDepositPopDeposit` | 120,158 | 45,437,191 | 378x |
-| `transfer` | 35,302 | 27,046,708 | 766x |
-| `approve` | 46,599 | 18,827,210 | 404x |
-| `transferFrom` | 60,179 | 35,972,942 | 598x |
-| `setOperator` | 45,860 | 18,780,757 | 410x |
-| `authorize(operator, CREATE_RAIL)` | 45,835 | 18,720,306 | 408x |
-| `createRail` | 49,586 | 19,729,271 | 398x |
-| `deposit (native)` | 45,885 | 18,660,455 | 407x |
-| `modifyRate` | 39,501 | 28,338,346 | 717x |
-| `settleRail` | 55,448 | 27,994,280 | 505x |
-| `lock` | 33,478 | 27,101,528 | 810x |
-| `disburse` | 35,393 | 26,882,024 | 760x |
-| `unlock` | 32,972 | 26,891,492 | 816x |
-| `terminateRail` | 37,785 | 34,600,259 | 916x |
+| `deploy FilecoinPayV2` | 1,354,596 | 38,747,097 | 29x |
+| `deploy MockERC20` | 388,263 | 17,585,216 | 45x |
+| `MockERC20.mint(alice)` | 67,798 | 4,698,928 | 69x |
+| `MockERC20.mint(bob)` | 50,686 | 4,880,027 | 96x |
+| `MockERC20.approve(alice)` | 46,136 | 5,188,761 | 112x |
+| `MockERC20.approve(bob)` | 46,136 | 5,450,681 | 118x |
+| `authorize(bob, ALL)` | 46,195 | 18,839,137 | 408x |
+| `executeScript/pushSudoDepositPopDeposit` | 120,158 | 45,429,779 | 378x |
+| `transfer` | 35,302 | 27,044,910 | 766x |
+| `approve` | 46,599 | 18,825,412 | 404x |
+| `transferFrom` | 60,179 | 35,971,144 | 598x |
+| `setOperator` | 45,860 | 18,778,958 | 409x |
+| `authorize(operator, CREATE_RAIL)` | 45,835 | 18,718,507 | 408x |
+| `createRail` | 49,586 | 19,727,473 | 398x |
+| `deposit (native)` | 45,885 | 18,658,657 | 407x |
+| `modifyRate` | 39,501 | 28,336,547 | 717x |
+| `settleRail` | 55,448 | 27,992,481 | 505x |
+| `lock` | 33,478 | 27,099,729 | 809x |
+| `disburse` | 35,393 | 26,880,225 | 759x |
+| `unlock` | 32,972 | 26,889,693 | 816x |
+| `terminateRail` | 37,785 | 34,598,461 | 916x |
 
 | Step | State tree (IPLD blocks and actor records) | EVM interpreter (wasm) | Syscalls and invocation | Chain message |
 | --- | ---: | ---: | ---: | ---: |
-| `deploy FilecoinPayV2` | 68.8% | 6.0% | 3.0% | 22.3% |
-| `deploy MockERC20` | 66.5% | 11.6% | 5.6% | 16.2% |
+| `deploy FilecoinPayV2` | 68.7% | 6.0% | 3.0% | 22.3% |
+| `deploy MockERC20` | 66.4% | 11.9% | 5.7% | 16.0% |
 | `MockERC20.mint(alice)` | 57.6% | 16.6% | 8.1% | 17.7% |
 | `MockERC20.mint(bob)` | 58.4% | 16.8% | 7.8% | 17.0% |
-| `MockERC20.approve(alice)` | 59.7% | 16.2% | 7.4% | 16.8% |
-| `MockERC20.approve(bob)` | 61.3% | 15.7% | 7.0% | 16.0% |
+| `MockERC20.approve(alice)` | 59.7% | 16.1% | 7.4% | 16.8% |
+| `MockERC20.approve(bob)` | 61.3% | 15.6% | 7.0% | 16.0% |
 | `authorize(bob, ALL)` | 80.9% | 12.0% | 2.7% | 4.4% |
 | `executeScript/pushSudoDepositPopDeposit` | 80.4% | 13.5% | 4.0% | 2.1% |
 | `transfer` | 82.7% | 11.5% | 2.4% | 3.4% |
