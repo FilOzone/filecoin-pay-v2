@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
+import {stdError} from "forge-std/StdError.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
@@ -57,6 +58,46 @@ contract CallbacksTest is Test {
 
     function setUp() public {
         payments = new FilecoinPayV2();
+    }
+
+    function testRateOps() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = FLAG_CALLBACK;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        uint256 createdAt = vm.getBlockNumber();
+        RailId railId = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 1000);
+        vm.prank(alice);
+        payments.deposit{value: 1000}();
+
+        // the settling rail is the script's authorization, so neither op names it
+        vm.roll(createdAt + 1);
+        mockScript = ScriptBuilder.newScript().increaseRate(10).build();
+        expectSettleRail(railId, createdAt, createdAt + 1, 0, 0);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.getRail(railId).incomingRate, 10);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 1000);
+
+        vm.roll(createdAt + 3);
+        mockScript = ScriptBuilder.newScript().decreaseRate(4).build();
+        expectSettleRail(railId, createdAt + 1, createdAt + 3, 0, 20);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.getRail(railId).incomingRate, 6);
+        assertEq(payments.getRail(railId).available, 20);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 980);
+
+        vm.roll(createdAt + 4);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 974);
+
+        mockScript = ScriptBuilder.newScript().decreaseRate(7).build();
+        vm.expectRevert(stdError.arithmeticError);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
     }
 
     function testCallback() public {

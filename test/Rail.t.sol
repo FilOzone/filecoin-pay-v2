@@ -145,6 +145,31 @@ contract RailTest is Test {
         assertEq(state.available, 0);
     }
 
+    function testRateTwiceInOneBlock() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        uint256 fiftyAt = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 70);
+
+        assertEq(payments.getRail(rail).incomingRate, 70);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 500);
+
+        vm.roll(fiftyAt + 1);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 430, "the payer drains at the rate set last");
+    }
+
     function testSettleRailNotCreated() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");

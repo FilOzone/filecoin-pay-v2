@@ -113,6 +113,58 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
+    function withdraw(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, WITHDRAW), shl(120, amount)))
+            mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function withdrawTo(bytes memory scriptBuilder, uint128 amount, address recipient)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, WITHDRAWTO), shl(120, amount)))
+            mstore(add(17, buf), shl(96, recipient))
+            mstore(0x40, add(37, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function transfer(bytes memory scriptBuilder, uint128 amount, address recipient)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, TRANSFER), shl(120, amount)))
+            mstore(add(17, buf), shl(96, recipient))
+            mstore(0x40, add(37, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function transferFrom(bytes memory scriptBuilder, uint128 amount, address owner, address recipient)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, TRANSFERFROM), shl(120, amount)))
+            mstore(add(17, buf), shl(96, owner))
+            mstore(add(37, buf), shl(96, recipient))
+            mstore(0x40, add(57, buf))
+        }
+        return scriptBuilder;
+    }
+
     function lock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -127,6 +179,24 @@ library ScriptBuilder {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, UNLOCK), shl(120, amount)))
             mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function increaseRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, INCREASERATE), shl(160, rate)))
+            mstore(0x40, add(12, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function decreaseRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, DECREASERATE), shl(160, rate)))
+            mstore(0x40, add(12, buf))
         }
         return scriptBuilder;
     }

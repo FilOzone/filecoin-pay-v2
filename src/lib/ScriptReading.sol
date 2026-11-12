@@ -40,6 +40,13 @@ library ScriptReading {
         }
     }
 
+    function nextU88(uint256 curr) internal pure returns (uint88 next, uint256 newCurr) {
+        assembly ("memory-safe") {
+            next := shr(168, mload(curr))
+            newCurr := add(curr, 11)
+        }
+    }
+
     function nextU128(uint256 curr) internal pure returns (uint128 next, uint256 newCurr) {
         assembly ("memory-safe") {
             next := shr(128, mload(curr))

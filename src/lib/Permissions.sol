@@ -27,7 +27,7 @@ uint256 constant WITHDRAW_TO_U256 = WITHDRAW_U256 | TRANSFER_U256;
 Permissions constant NONE = Permissions.wrap(NONE_U256);
 Permissions constant ALL = Permissions.wrap(ALL_U256);
 Permissions constant DEPOSIT_TO = Permissions.wrap(DEPOSIT_TO_U256);
-Permissions constant WITHRDAW_TO = Permissions.wrap(WITHDRAW_TO_U256);
+Permissions constant WITHDRAW_TO = Permissions.wrap(WITHDRAW_TO_U256);
 
 function and(Permissions a, Permissions b) pure returns (Permissions) {
     return Permissions.wrap(Permissions.unwrap(a) & Permissions.unwrap(b));

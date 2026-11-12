@@ -4,12 +4,24 @@ pragma solidity ^0.8.37;
 import {IERC165} from "forge-std/interfaces/IERC165.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
+import {FVMPay} from "fvm-solidity/FVMPay.sol";
+
 import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/Script.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {Extsload} from "./Extsload.sol";
-import {ALL, CREATE_RAIL, DEPOSIT, DEPOSIT_TO, NONE, Permissions} from "./lib/Permissions.sol";
+import {
+    ALL,
+    CREATE_RAIL,
+    DEPOSIT,
+    DEPOSIT_TO,
+    NONE,
+    Permissions,
+    TRANSFER,
+    WITHDRAW,
+    WITHDRAW_TO
+} from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/ScriptReading.sol";
 
@@ -22,6 +34,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     using RailIdLibrary for address;
     using RailIdLibrary for Stream;
     using RailIdLibrary for StreamState;
+    using FVMPay for address;
     using SafeTransferLib for address;
 
     struct Authorization {
@@ -136,12 +149,19 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         validToken(token)
         returns (bool)
     {
+        return _transferFrom(msg.sender, owner, recipient, token, amount);
+    }
+
+    function _transferFrom(address spender, address owner, address recipient, uint256 token, uint256 amount)
+        internal
+        returns (bool)
+    {
         User storage from = users[owner];
         Account storage debit = from.accounts[token];
-        if (!from.authorizations[msg.sender].permissions.isOperator()) {
-            uint256 approved = debit.allowance[msg.sender];
+        if (!from.authorizations[spender].permissions.isOperator()) {
+            uint256 approved = debit.allowance[spender];
             if (approved != INFINITE) {
-                debit.allowance[msg.sender] = approved - amount;
+                debit.allowance[spender] = approved - amount;
             }
         }
         return _move(debit, recipient, owner, token, amount);
@@ -161,6 +181,16 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     function depositTo(address token, address recipient, uint256 amount) external {
         _depositTo(uint256(uint160(token)), msg.sender, recipient, amount);
+    }
+
+    /// @param token address(0) withdraws native FIL
+    function withdraw(address token, uint256 amount) external {
+        _withdrawTo(uint256(uint160(token)), msg.sender, msg.sender, amount);
+    }
+
+    /// @param token address(0) withdraws native FIL
+    function withdrawTo(address token, address recipient, uint256 amount) external {
+        _withdrawTo(uint256(uint160(token)), msg.sender, recipient, amount);
     }
 
     function authorize(address operator, Permissions permissions) external {
@@ -292,19 +322,25 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         external
         validToken(token)
     {
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
-        require(stream.exists(), RailNotCreated());
+        Stream storage stream = _settleForRate(msg.sender, from, recipient, nonce, token);
+        _setRate(stream, users[from].accounts[token], stream.state.incomingRate, rate);
+    }
 
+    /// @dev settling first is what lets the new rate apply from this block on
+    function _settleForRate(address operator, address from, address recipient, uint32 nonce, uint256 token)
+        internal
+        returns (Stream storage stream)
+    {
         // TODO(perf): this duplicates the deriveRail hashing
-        // TODO(perf): this duplicates the stream sload
-        uint256 settledUpTo = _settleRail(msg.sender, from, recipient, nonce, token);
-        require(settledUpTo == block.number, Behind());
+        stream = operator.deriveRail(from, recipient, token, nonce);
+        // _settleRail requires the rail exists
+        require(_settleRail(operator, from, recipient, nonce, token) == block.number, Behind());
+    }
 
-        // NOTE: must re-read this because it can change during _settleRail
-        uint88 previousRate = stream.state.incomingRate;
+    /// @param previousRate must be read after settling, which a callback script can change
+    function _setRate(Stream storage stream, Account storage account, uint88 previousRate, uint88 rate) internal {
         stream.state.incomingRate = rate;
 
-        Account storage account = users[from].accounts[token];
         Checkpoint memory previous = account.latest;
         if (previous.modifiedEpoch != block.number) {
             unchecked {
@@ -313,8 +349,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     (block.number - uint256(previous.modifiedEpoch)) * uint256(previous.drainRate)
                 );
                 previous.modifiedEpoch = uint40(block.number);
-                previous.drainRate += rate - previousRate;
             }
+        }
+        unchecked {
+            previous.drainRate += rate - previousRate;
         }
         account.latest = previous;
     }
@@ -412,16 +450,21 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         emit Transfer(msg.sender, owner, recipient, token, amount);
     }
 
-    function _move(Account storage debit, address recipient, address owner, uint256 token, uint256 amount)
-        internal
-        returns (bool)
-    {
-        Checkpoint memory balance = debit.latest;
+    /// @dev the checkpoint keeps its epoch, so the rails it owes still drain from where they left off
+    function _debit(Account storage account, uint256 amount) internal {
+        Checkpoint memory balance = account.latest;
         require(current(balance) >= amount, InsufficientBalance());
         unchecked {
             balance.balance -= uint128(amount);
         }
-        debit.latest = balance;
+        account.latest = balance;
+    }
+
+    function _move(Account storage debit, address recipient, address owner, uint256 token, uint256 amount)
+        internal
+        returns (bool)
+    {
+        _debit(debit, amount);
         _credit(recipient, owner, token, amount);
         return true;
     }
@@ -429,6 +472,19 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     function _depositTo(uint256 token, address from, address recipient, uint256 amount) internal {
         _credit(recipient, address(0), token, amount);
         address(uint160(token)).safeTransferFrom(from, address(this), amount);
+    }
+
+    error PaymentFailed();
+
+    function _withdrawTo(uint256 token, address owner, address recipient, uint256 amount) internal {
+        Account storage account = users[owner].accounts[token];
+        _debit(account, amount);
+        emit Transfer(msg.sender, owner, address(0), token, amount);
+        if (token == 0) {
+            require(recipient.pay(amount), PaymentFailed());
+        } else {
+            address(uint160(token)).safeTransfer(recipient, amount);
+        }
     }
 
     /**
@@ -535,7 +591,44 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     }
                 } else {
                     if (method < 12) {
-                        // 8 9 10 11
+                        uint128 amount;
+                        (amount, curr) = curr.nextU128();
+                        if (method < 10) {
+                            address recipient = auth.authenticated;
+                            if (method == Ops.WITHDRAW) {
+                                require(
+                                    auth.permissions & WITHDRAW != NONE, Unauthorized(auth.authenticated, msg.sender)
+                                );
+                            } else {
+                                // Ops.WITHDRAWTO
+                                require(
+                                    auth.permissions & WITHDRAW_TO == WITHDRAW_TO,
+                                    Unauthorized(auth.authenticated, msg.sender)
+                                );
+                                (recipient, curr) = curr.nextAddress();
+                            }
+                            _withdrawTo(auth.token, auth.authenticated, recipient, amount);
+                        } else {
+                            require(auth.permissions & TRANSFER != NONE, Unauthorized(auth.authenticated, msg.sender));
+                            if (method == Ops.TRANSFER) {
+                                address recipient;
+                                (recipient, curr) = curr.nextAddress();
+                                _move(
+                                    users[auth.authenticated].accounts[auth.token],
+                                    recipient,
+                                    auth.authenticated,
+                                    auth.token,
+                                    amount
+                                );
+                            } else {
+                                // Ops.TRANSFERFROM
+                                address owner;
+                                address recipient;
+                                (owner, curr) = curr.nextAddress();
+                                (recipient, curr) = curr.nextAddress();
+                                _transferFrom(auth.authenticated, owner, recipient, auth.token, amount);
+                            }
+                        }
                     } else {
                         if (method < 14) {
                             uint128 amount;
@@ -551,7 +644,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 _unlock(stream, users[auth.from].accounts[auth.token], amount);
                             }
                         } else {
-                            // 14 15
+                            // Ops.INCREASERATE, Ops.DECREASERATE
+                            uint88 delta;
+                            (delta, curr) = curr.nextU88();
+                            Stream storage stream =
+                                _settleForRate(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
+                            uint88 previousRate = stream.state.incomingRate;
+                            _setRate(
+                                stream,
+                                users[auth.from].accounts[auth.token],
+                                previousRate,
+                                method == Ops.INCREASERATE ? previousRate + delta : previousRate - delta
+                            );
                         }
                     }
                 }

@@ -4,9 +4,11 @@ pragma solidity ^0.8.37;
 import {Test} from "forge-std/Test.sol";
 
 import {
+    DECREASERATE,
     DEPOSIT,
     DEPOSITTO,
     DISBURSEALL,
+    INCREASERATE,
     LOCK,
     POP,
     PUSH,
@@ -15,7 +17,11 @@ import {
     SETTOKEN,
     SUDO,
     ScriptBuilder,
-    UNLOCK
+    TRANSFER,
+    TRANSFERFROM,
+    UNLOCK,
+    WITHDRAW,
+    WITHDRAWTO
 } from "../src/lib/Script.sol";
 
 contract ScriptBuilderTest is Test {
@@ -27,6 +33,7 @@ contract ScriptBuilderTest is Test {
     address private constant MAX_ADDRESS = address(type(uint160).max);
     uint128 private constant MAX_AMOUNT = type(uint128).max;
     uint32 private constant MAX_NONCE = type(uint32).max;
+    uint88 private constant MAX_RATE = type(uint88).max;
 
     function testBuild() public pure {
         bytes memory script = ScriptBuilder.newScript()
@@ -35,8 +42,14 @@ contract ScriptBuilderTest is Test {
             .sudo(ALICE)
             .deposit(MAX_AMOUNT)
             .depositTo(MAX_AMOUNT, BOB)
+            .withdraw(MAX_AMOUNT)
+            .withdrawTo(MAX_AMOUNT, BOB)
+            .transfer(MAX_AMOUNT, BOB)
+            .transferFrom(MAX_AMOUNT, ALICE, MAX_ADDRESS)
             .lock(MAX_AMOUNT)
             .unlock(5)
+            .increaseRate(MAX_RATE)
+            .decreaseRate(7)
             .disburseAll()
             .settleRail(MAX_ADDRESS, ALICE, MAX_ADDRESS, MAX_NONCE)
             .reset()
@@ -56,10 +69,26 @@ contract ScriptBuilderTest is Test {
                 uint8(DEPOSITTO),
                 MAX_AMOUNT,
                 BOB,
+                uint8(WITHDRAW),
+                MAX_AMOUNT,
+                uint8(WITHDRAWTO),
+                MAX_AMOUNT,
+                BOB,
+                uint8(TRANSFER),
+                MAX_AMOUNT,
+                BOB,
+                uint8(TRANSFERFROM),
+                MAX_AMOUNT,
+                ALICE,
+                MAX_ADDRESS,
                 uint8(LOCK),
                 MAX_AMOUNT,
                 uint8(UNLOCK),
                 uint128(5),
+                uint8(INCREASERATE),
+                MAX_RATE,
+                uint8(DECREASERATE),
+                uint88(7),
                 uint8(DISBURSEALL),
                 uint8(SETTLERAIL),
                 MAX_ADDRESS,

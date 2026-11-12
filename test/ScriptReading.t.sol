@@ -9,7 +9,7 @@ contract ScriptReadingTest is Test {
     using ScriptReading for bytes;
 
     bytes constant DATA =
-        hex"0001ff02030405060708090a0b0c0d0e0f1044445555666677777777777777777777777777777778888888888888888888888888888888999999999999999999999aaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbc";
+        hex"0001ff02030405060708090a0b0c0d0e0f104444555566667777777777777777777777777777777888888888888888888888888888888899999999eeeeeeeeeeeeeeeeeeeeee";
 
     function _testIter(uint256 curr, uint256 end) internal pure {
         assertEq(end - curr, DATA.length);
@@ -31,6 +31,10 @@ contract ScriptReadingTest is Test {
         uint32 u32;
         (u32, curr) = curr.nextU32();
         assertEq(u32, 0x99999999);
+        uint88 u88;
+        (u88, curr) = curr.nextU88();
+        assertEq(u88, 0xeeeeeeeeeeeeeeeeeeeeee);
+        assertEq(curr, end, "every reader advances by its operand width");
     }
 
     function testMemoryIter() public pure {
