@@ -90,6 +90,20 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
+    function createRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, CREATERAIL), shl(88, from)))
+            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
+            mstore(0x40, add(45, buf))
+        }
+        return scriptBuilder;
+    }
+
     function deposit(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
             let buf := mload(0x40)

@@ -407,15 +407,27 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         validToken(token)
         returns (RailId railId)
     {
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
+        return _createRail(msg.sender, from, recipient, nonce, token, ALL);
+    }
+
+    /// @param scope narrows the authorization a script runs under
+    function _createRail(
+        address operator,
+        address from,
+        address recipient,
+        uint32 nonce,
+        uint256 token,
+        Permissions scope
+    ) internal returns (RailId railId) {
+        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
         require(!stream.exists(), Exists());
         require(
-            users[from].authorizations[msg.sender].permissions & CREATE_RAIL != NONE, Unauthorized(from, msg.sender)
+            scope & users[from].authorizations[operator].permissions & CREATE_RAIL != NONE, Unauthorized(from, operator)
         );
 
         stream.init();
         railId = stream.getRailId();
-        emit RailCreated(from, recipient, msg.sender, token, railId, nonce);
+        emit RailCreated(from, recipient, operator, token, railId, nonce);
     }
 
     struct Auth {
@@ -566,7 +578,19 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 (token, curr) = curr.nextAddress();
                                 auth.token = uint256(uint160(token));
                             } else {
-                                // 5
+                                // Ops.CREATERAIL
+                                // the rail ops that follow address what this created
+                                (auth.from, curr) = curr.nextAddress();
+                                (auth.recipient, curr) = curr.nextAddress();
+                                (auth.nonce, curr) = curr.nextU32();
+                                _createRail(
+                                    auth.authenticated,
+                                    auth.from,
+                                    auth.recipient,
+                                    auth.nonce,
+                                    auth.token,
+                                    auth.permissions
+                                );
                             }
                         } else {
                             uint128 amount;

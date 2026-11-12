@@ -5,7 +5,7 @@ import {stdError} from "forge-std/StdError.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
-import {CREATE_RAIL} from "../src/lib/Permissions.sol";
+import {ALL, CREATE_RAIL} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
 import {ScriptBuilder} from "../src/lib/Script.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
@@ -143,6 +143,42 @@ contract RailTest is Test {
         assertEq(state.incomingRate, 0);
         assertEq(state.settledUpTo, fiftyAt + 10);
         assertEq(state.available, 0);
+    }
+
+    function testCreateRailScript() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 7;
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        bytes memory script = ScriptBuilder.newScript().createRail(alice, bob, nonce).increaseRate(5).lock(100).build();
+
+        vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
+        payments.executeScript(script);
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
+        payments.executeScript(ALL & ~CREATE_RAIL, script);
+
+        RailId expectedRailId = RailIdLibrary.getRailId(address(this).deriveRail(alice, bob, NATIVE_TOKEN, nonce));
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailCreated(alice, bob, address(this), NATIVE_TOKEN, expectedRailId, nonce);
+        payments.executeScript(script);
+
+        StreamState memory state = payments.getRail(expectedRailId);
+        assertEq(state.incomingRate, 5, "the rail ops after it address the rail it created");
+        assertEq(state.available, 100);
+        assertEq(state.settledUpTo, vm.getBlockNumber());
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
+
+        vm.expectRevert(FilecoinPayV2.Exists.selector);
+        payments.executeScript(script);
     }
 
     function testRateTwiceInOneBlock() public {

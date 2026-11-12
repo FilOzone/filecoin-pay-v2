@@ -4,6 +4,7 @@ pragma solidity ^0.8.37;
 import {Test} from "forge-std/Test.sol";
 
 import {
+    CREATERAIL,
     DECREASERATE,
     DEPOSIT,
     DEPOSITTO,
@@ -29,7 +30,8 @@ contract ScriptBuilderTest is Test {
 
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
-    // saturated operands would collide with the adjacent field if a shift were off by a byte
+    // saturated operands would collide with the adjacent field if a shift were off by a byte,
+    // so each op pairs one with distinct operands, which a swapped pair would not survive
     address private constant MAX_ADDRESS = address(type(uint160).max);
     uint128 private constant MAX_AMOUNT = type(uint128).max;
     uint32 private constant MAX_NONCE = type(uint32).max;
@@ -40,6 +42,7 @@ contract ScriptBuilderTest is Test {
             .setToken(MAX_ADDRESS)
             .push()
             .sudo(ALICE)
+            .createRail(BOB, MAX_ADDRESS, MAX_NONCE)
             .deposit(MAX_AMOUNT)
             .depositTo(MAX_AMOUNT, BOB)
             .withdraw(MAX_AMOUNT)
@@ -51,7 +54,7 @@ contract ScriptBuilderTest is Test {
             .increaseRate(MAX_RATE)
             .decreaseRate(7)
             .disburseAll()
-            .settleRail(MAX_ADDRESS, ALICE, MAX_ADDRESS, MAX_NONCE)
+            .settleRail(MAX_ADDRESS, ALICE, BOB, MAX_NONCE)
             .reset()
             .pop()
             .build();
@@ -64,6 +67,10 @@ contract ScriptBuilderTest is Test {
                 uint8(PUSH),
                 uint8(SUDO),
                 ALICE,
+                uint8(CREATERAIL),
+                BOB,
+                MAX_ADDRESS,
+                MAX_NONCE,
                 uint8(DEPOSIT),
                 MAX_AMOUNT,
                 uint8(DEPOSITTO),
@@ -93,7 +100,7 @@ contract ScriptBuilderTest is Test {
                 uint8(SETTLERAIL),
                 MAX_ADDRESS,
                 ALICE,
-                MAX_ADDRESS,
+                BOB,
                 MAX_NONCE,
                 uint8(RESET),
                 uint8(POP)

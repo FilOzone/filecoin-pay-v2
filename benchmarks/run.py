@@ -27,7 +27,7 @@ MNEMONIC = "test test test test test test test test test test test junk"
 NATIVE_TOKEN = 0
 
 # src/lib/Script.sol opcodes
-POP, PUSH, SUDO, SETTOKEN, DEPOSIT = 0, 1, 3, 4, 6
+POP, PUSH, SUDO, SETTOKEN, CREATERAIL, DEPOSIT = 0, 1, 3, 4, 5, 6
 # src/lib/Permissions.sol
 ALL = (1 << 256) - 1
 CREATE_RAIL = 1 << 3
@@ -40,6 +40,8 @@ RAIL_DEPOSIT = 10**6
 RAIL_RATE = 50
 RAIL_LOCK = 50
 RAIL_DISBURSE = 25
+# the rails sequence ends on a terminated nonce 0, so the script creates a rail that never existed
+SCRIPT_RAIL_NONCE = 1
 
 
 def command(args: list[str], *, cwd: Path | None = None) -> str:
@@ -338,6 +340,17 @@ class Runner:
             )
         ).hex()
 
+    def create_rail_script(self) -> str:
+        """The script op against the external entry point, on a nonce no other step holds."""
+        return "0x" + b"".join(
+            (
+                bytes([CREATERAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+            )
+        ).hex()
+
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
         rail = [self.alice, self.bob, "0", str(NATIVE_TOKEN)]
@@ -386,6 +399,8 @@ class Runner:
                 {"name": "terminateRail", "sender": self.operator,
                  "signature": "terminateRail(address,address,address,uint32,uint256)",
                  "arguments": [self.operator] + rail},
+                {"name": "executeScript/createRail", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.create_rail_script()]},
             ],
         }
 
