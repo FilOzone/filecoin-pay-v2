@@ -33,7 +33,7 @@ The ballast covers `FilecoinPayV2` only.
 
 Filecoin gas depends on the storage a message commits, so measuring a sequence linearly would charge each operation for whatever its predecessors wrote.
 The runner instead snapshots the state after deployment, funding, and prefill, then measures each operation from that baseline, replaying only its own prerequisites and reverting afterwards.
-`evm_revert` restores the state root, epoch, and nonces: `authorize(bob, ALL)` measures 18,822,622 both at the start of a run and after 21 other transactions have executed and been reverted.
+`evm_revert` restores the state root, epoch, and nonces: `authorize(bob, ALL)` measures 18,804,913 both at the start of a run and after 21 other transactions have executed and been reverted.
 
 A measurement is independent of other operations, not of its own prerequisites.
 `terminateRail` must settle a rail that exists, so it is measured over the storage `createRail` and `modifyRate` wrote, and each step records what it replayed in `prerequisites`.
@@ -107,50 +107,50 @@ Each ERC-6909 and rail operation below them is measured from the baseline, with 
 
 | Step | EVM gas | Filecoin gas | Ratio |
 | --- | ---: | ---: | ---: |
-| `deploy FilecoinPayV2` | 1,295,336 | 37,440,200 | 29x |
+| `deploy FilecoinPayV2` | 1,237,172 | 36,155,668 | 29x |
 | `deploy MockERC20` | 388,263 | 17,585,216 | 45x |
 | `MockERC20.mint(alice)` | 67,798 | 4,698,928 | 69x |
 | `MockERC20.mint(bob)` | 50,686 | 4,880,027 | 96x |
 | `MockERC20.approve(alice)` | 46,136 | 5,188,761 | 112x |
 | `MockERC20.approve(bob)` | 46,136 | 5,450,681 | 118x |
-| `authorize(bob, ALL)` | 46,195 | 18,822,622 | 407x |
-| `executeScript/pushSudoDepositPopDeposit` | 120,200 | 45,416,648 | 378x |
-| `transfer` | 35,302 | 27,028,395 | 766x |
-| `approve` | 46,599 | 18,808,897 | 404x |
-| `transferFrom` | 60,179 | 35,954,629 | 597x |
-| `setOperator` | 45,860 | 18,762,443 | 409x |
-| `authorize(operator, CREATE_RAIL)` | 45,835 | 18,701,992 | 408x |
-| `createRail` | 49,586 | 19,710,957 | 398x |
-| `deposit (native)` | 45,901 | 18,641,432 | 406x |
-| `modifyRate` | 39,501 | 28,320,032 | 717x |
-| `settleRail` | 55,448 | 27,975,966 | 505x |
-| `lock` | 33,478 | 27,083,214 | 809x |
-| `disburse` | 35,393 | 26,863,710 | 759x |
-| `unlock` | 32,972 | 26,873,178 | 815x |
-| `terminateRail` | 37,785 | 34,581,946 | 915x |
+| `authorize(bob, ALL)` | 46,195 | 18,804,913 | 407x |
+| `executeScript/pushSudoDepositPopDeposit` | 120,216 | 45,402,251 | 378x |
+| `transfer` | 35,374 | 27,021,529 | 764x |
+| `approve` | 46,599 | 18,791,187 | 403x |
+| `transferFrom` | 60,263 | 35,949,095 | 597x |
+| `setOperator` | 45,860 | 18,744,734 | 409x |
+| `authorize(operator, CREATE_RAIL)` | 45,835 | 18,684,283 | 408x |
+| `createRail` | 49,586 | 19,693,248 | 397x |
+| `deposit (native)` | 45,907 | 18,625,075 | 406x |
+| `modifyRate` | 39,501 | 28,302,323 | 716x |
+| `settleRail` | 55,448 | 27,958,257 | 504x |
+| `lock` | 33,478 | 27,065,505 | 808x |
+| `disburse` | 35,393 | 26,846,001 | 759x |
+| `unlock` | 32,972 | 26,855,469 | 814x |
+| `terminateRail` | 37,785 | 34,564,236 | 915x |
 
 | Step | State tree (IPLD blocks and actor records) | EVM interpreter (wasm) | Syscalls and invocation | Chain message |
 | --- | ---: | ---: | ---: | ---: |
-| `deploy FilecoinPayV2` | 68.7% | 6.2% | 3.1% | 22.1% |
+| `deploy FilecoinPayV2` | 68.6% | 6.4% | 3.1% | 21.9% |
 | `deploy MockERC20` | 66.4% | 11.9% | 5.7% | 16.0% |
 | `MockERC20.mint(alice)` | 57.6% | 16.6% | 8.1% | 17.7% |
 | `MockERC20.mint(bob)` | 58.4% | 16.8% | 7.8% | 17.0% |
 | `MockERC20.approve(alice)` | 59.7% | 16.1% | 7.4% | 16.8% |
 | `MockERC20.approve(bob)` | 61.3% | 15.6% | 7.0% | 16.0% |
-| `authorize(bob, ALL)` | 81.0% | 11.9% | 2.7% | 4.4% |
-| `executeScript/pushSudoDepositPopDeposit` | 80.4% | 13.5% | 4.0% | 2.1% |
+| `authorize(bob, ALL)` | 81.0% | 11.8% | 2.7% | 4.4% |
+| `executeScript/pushSudoDepositPopDeposit` | 80.4% | 13.4% | 4.0% | 2.1% |
 | `transfer` | 82.7% | 11.5% | 2.4% | 3.4% |
-| `approve` | 80.3% | 12.0% | 2.8% | 4.9% |
-| `transferFrom` | 83.4% | 11.6% | 2.4% | 2.7% |
-| `setOperator` | 80.6% | 12.1% | 2.7% | 4.7% |
-| `authorize(operator, CREATE_RAIL)` | 80.9% | 12.0% | 2.7% | 4.4% |
+| `approve` | 80.4% | 11.9% | 2.8% | 4.9% |
+| `transferFrom` | 83.4% | 11.5% | 2.4% | 2.7% |
+| `setOperator` | 80.6% | 12.0% | 2.7% | 4.7% |
+| `authorize(operator, CREATE_RAIL)` | 80.9% | 11.9% | 2.7% | 4.4% |
 | `createRail` | 78.2% | 13.9% | 3.0% | 4.9% |
 | `deposit (native)` | 81.2% | 12.0% | 2.8% | 4.0% |
 | `modifyRate` | 80.3% | 13.5% | 2.8% | 3.4% |
-| `settleRail` | 80.9% | 12.8% | 2.7% | 3.6% |
-| `lock` | 82.5% | 11.7% | 2.3% | 3.5% |
-| `disburse` | 82.8% | 11.3% | 2.4% | 3.6% |
-| `unlock` | 83.1% | 11.1% | 2.3% | 3.6% |
+| `settleRail` | 81.0% | 12.8% | 2.7% | 3.6% |
+| `lock` | 82.5% | 11.6% | 2.3% | 3.5% |
+| `disburse` | 82.8% | 11.2% | 2.4% | 3.6% |
+| `unlock` | 83.1% | 11.0% | 2.3% | 3.6% |
 | `terminateRail` | 83.0% | 11.9% | 2.4% | 2.8% |
 
 ## Findings

@@ -126,19 +126,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     /// @inheritdoc IERC6909
     function transfer(address recipient, uint256 token, uint256 amount) external validToken(token) returns (bool) {
-        Account storage spender = users[msg.sender].accounts[token];
-        Checkpoint memory spenderBalance = spender.latest;
-        require(current(spenderBalance) >= amount, InsufficientBalance());
-        unchecked {
-            spenderBalance.balance -= uint128(amount);
-        }
-        spender.latest = spenderBalance;
-
-        unchecked {
-            users[recipient].accounts[token].latest.balance += uint128(amount);
-        }
-        emit Transfer(msg.sender, msg.sender, recipient, token, amount);
-        return true;
+        return _move(users[msg.sender].accounts[token], recipient, msg.sender, token, amount);
     }
 
     /// @inheritdoc IERC6909
@@ -155,25 +143,15 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                 debit.allowance[msg.sender] = approved - amount;
             }
         }
-        Checkpoint memory spenderBalance = debit.latest;
-        require(current(spenderBalance) >= amount, InsufficientBalance());
-        unchecked {
-            spenderBalance.balance -= uint128(amount);
-        }
-        debit.latest = spenderBalance;
-        unchecked {
-            users[recipient].accounts[token].latest.balance += uint128(amount);
-        }
-        emit Transfer(msg.sender, owner, recipient, token, amount);
-        return true;
+        return _move(debit, recipient, owner, token, amount);
     }
 
     function deposit() public payable {
-        _credit(msg.sender, 0, msg.value);
+        _credit(msg.sender, address(0), 0, msg.value);
     }
 
     function depositTo(address recipient) public payable {
-        _credit(recipient, 0, msg.value);
+        _credit(recipient, address(0), 0, msg.value);
     }
 
     function deposit(address token, uint256 amount) external {
@@ -426,15 +404,29 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     // recipient leads: callers hold it nearest the stack top, so the shared body needs the fewest swaps
-    function _credit(address recipient, uint256 token, uint256 amount) internal {
+    function _credit(address recipient, address owner, uint256 token, uint256 amount) internal {
         unchecked {
             users[recipient].accounts[token].latest.balance += uint128(amount);
         }
-        emit Transfer(msg.sender, address(0), recipient, token, amount);
+        emit Transfer(msg.sender, owner, recipient, token, amount);
+    }
+
+    function _move(Account storage debit, address recipient, address owner, uint256 token, uint256 amount)
+        internal
+        returns (bool)
+    {
+        Checkpoint memory balance = debit.latest;
+        require(current(balance) >= amount, InsufficientBalance());
+        unchecked {
+            balance.balance -= uint128(amount);
+        }
+        debit.latest = balance;
+        _credit(recipient, owner, token, amount);
+        return true;
     }
 
     function _depositTo(uint256 token, address from, address recipient, uint256 amount) internal {
-        _credit(recipient, token, amount);
+        _credit(recipient, address(0), token, amount);
         address(uint160(token)).safeTransferFrom(from, address(this), amount);
     }
 
