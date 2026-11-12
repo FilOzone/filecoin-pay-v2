@@ -169,21 +169,15 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     function deposit() public payable {
-        unchecked {
-            users[msg.sender].accounts[0].latest.balance += uint128(msg.value);
-        }
-        emit Transfer(msg.sender, address(0), msg.sender, 0, msg.value);
+        _credit(msg.sender, 0, msg.value);
     }
 
     function depositTo(address recipient) public payable {
-        unchecked {
-            users[recipient].accounts[0].latest.balance += uint128(msg.value);
-        }
-        emit Transfer(msg.sender, address(0), recipient, 0, msg.value);
+        _credit(recipient, 0, msg.value);
     }
 
     function deposit(address token, uint256 amount) external {
-        _deposit(uint256(uint160(token)), msg.sender, amount);
+        _depositTo(uint256(uint160(token)), msg.sender, msg.sender, amount);
     }
 
     function depositTo(address token, address recipient, uint256 amount) external {
@@ -431,19 +425,16 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         }
     }
 
-    function _deposit(uint256 token, address owner, uint256 amount) internal {
-        unchecked {
-            users[owner].accounts[token].latest.balance += uint128(amount);
-        }
-        emit Transfer(msg.sender, address(0), owner, token, amount);
-        address(uint160(token)).safeTransferFrom(owner, address(this), amount);
-    }
-
-    function _depositTo(uint256 token, address from, address recipient, uint256 amount) internal {
+    // recipient leads: callers hold it nearest the stack top, so the shared body needs the fewest swaps
+    function _credit(address recipient, uint256 token, uint256 amount) internal {
         unchecked {
             users[recipient].accounts[token].latest.balance += uint128(amount);
         }
         emit Transfer(msg.sender, address(0), recipient, token, amount);
+    }
+
+    function _depositTo(uint256 token, address from, address recipient, uint256 amount) internal {
+        _credit(recipient, token, amount);
         address(uint160(token)).safeTransferFrom(from, address(this), amount);
     }
 
@@ -536,7 +527,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 require(
                                     auth.permissions & DEPOSIT != NONE, Unauthorized(auth.authenticated, msg.sender)
                                 );
-                                _deposit(auth.token, auth.authenticated, amount);
+                                _depositTo(auth.token, auth.authenticated, auth.authenticated, amount);
                             } else {
                                 // Ops.DEPOSITTO
                                 require(
