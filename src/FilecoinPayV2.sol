@@ -14,19 +14,25 @@ import {Extsload} from "./Extsload.sol";
 import {
     ALL,
     CREATE_RAIL,
-    DEPOSIT,
-    DEPOSIT_TO,
+    DEPOSIT_TO_U256,
+    DEPOSIT_U256,
     NONE,
     Permissions,
-    TRANSFER,
-    WITHDRAW,
-    WITHDRAW_TO
+    TRANSFER_U256,
+    WITHDRAW_TO_U256,
+    WITHDRAW_U256
 } from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/ScriptReading.sol";
 
 /// @dev an allowance of INFINITE is never decremented
 uint256 constant INFINITE = type(uint256).max;
+
+/// @dev one nibble per op, indexed by the op: the Permissions the dispatcher requires of it
+uint256 constant PERMISSION_BY_OP = (WITHDRAW_U256 << (4 * Ops.WITHDRAW)) | (DEPOSIT_U256 << (4 * Ops.DEPOSIT))
+    | (WITHDRAW_TO_U256 << (4 * Ops.WITHDRAWTO)) | (DEPOSIT_TO_U256 << (4 * Ops.DEPOSITTO))
+    | (TRANSFER_U256 << (4 * Ops.TRANSFER)) | (TRANSFER_U256 << (4 * Ops.TRANSFERFROM))
+    | (TRANSFER_U256 << (4 * Ops.TRANSFERALL));
 
 contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for bytes;
@@ -259,21 +265,27 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         external
         validToken(token)
     {
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
-        // TODO(perf): this duplicates the read of stream.state
-        require(stream.exists(), RailNotCreated());
-        _lock(stream, users[from].accounts[token], uint128(amount));
+        _lockup(from, recipient, nonce, token, amount, true);
     }
 
-    function _lock(Stream storage stream, Account storage from, uint128 amount) internal {
-        Checkpoint memory latest = from.latest;
-        require(current(latest) >= amount, InsufficientBalance());
-        unchecked {
-            latest.balance -= amount;
-        }
-        from.latest = latest;
-        unchecked {
-            stream.state.available += amount;
+    /// @param add moves the payer's balance into the lockup; otherwise the lockup back to the payer
+    function _lockup(Stream storage stream, Account storage from, uint128 amount, bool add) internal {
+        if (add) {
+            Checkpoint memory latest = from.latest;
+            require(current(latest) >= amount, InsufficientBalance());
+            unchecked {
+                latest.balance -= amount;
+            }
+            from.latest = latest;
+            unchecked {
+                stream.state.available += amount;
+            }
+        } else {
+            unchecked {
+                from.latest.balance += amount;
+            }
+            // TODO(doc): defined error instead of stdErr.arithmeticError
+            stream.state.available -= amount;
         }
     }
 
@@ -281,24 +293,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         external
         validToken(token)
     {
-        Stream storage stream = msg.sender.deriveRail(from, recipient, token, nonce);
-        // TODO(perf): this duplicates the read of stream.state
-        require(stream.exists(), RailNotCreated());
-        _unlock(stream, users[from].accounts[token], uint128(amount));
+        _lockup(from, recipient, nonce, token, amount, false);
     }
 
-    function _unlock(Stream storage stream, Account storage from, uint128 amount) internal {
-        unchecked {
-            from.latest.balance += amount;
-        }
-        // TODO(doc): defined error instead of stdErr.arithmeticError
-        stream.state.available -= amount;
+    function _lockup(address from, address recipient, uint32 nonce, uint256 token, uint256 amount, bool add) internal {
+        _lockup(
+            _existingRail(msg.sender, from, recipient, token, nonce), users[from].accounts[token], uint128(amount), add
+        );
     }
 
     function terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) public {
         require(msg.sender == operator || msg.sender == from, Unauthorized(from, msg.sender));
-        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
-        require(stream.exists(), RailNotCreated());
+        Stream storage stream = _existingRail(operator, from, recipient, token, nonce);
 
         uint256 settledUpTo = _settleRail(operator, from, recipient, nonce, token);
 
@@ -379,16 +385,6 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         emit Transfer(operator, from, recipient, token, uint256(amount));
     }
 
-    function _disburseAll(address operator, address from, address recipient, uint32 nonce, uint256 token) internal {
-        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
-        uint128 amount = stream.state.available;
-        unchecked {
-            users[recipient].accounts[token].latest.balance += amount;
-        }
-        stream.state.available = 0;
-        emit Transfer(operator, from, recipient, token, uint256(amount));
-    }
-
     error Exists();
 
     event RailCreated(
@@ -441,7 +437,15 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     error Unauthorized(address user, address operator);
 
     function _existingRail(Auth memory auth) internal view returns (Stream storage stream) {
-        stream = auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce);
+        return _existingRail(auth.authenticated, auth.from, auth.recipient, auth.token, auth.nonce);
+    }
+
+    function _existingRail(address operator, address from, address recipient, uint256 token, uint32 nonce)
+        internal
+        view
+        returns (Stream storage stream)
+    {
+        stream = operator.deriveRail(from, recipient, token, nonce);
         // TODO(perf): this duplicates the read of stream.state
         require(stream.exists(), RailNotCreated());
     }
@@ -548,211 +552,130 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             uint256 method;
             (method, curr) = curr.nextByte();
 
-            // switch(method)
+            // switch(method), numbered so that adjacent ops share the reads and checks they have in common
 
-            if (method < 16) {
-                if (method < 8) {
-                    if (method < 4) {
-                        if (method < 2) {
-                            if (method == Ops.POP) {
-                                // Ops.POP
-                                return curr;
-                            } else {
-                                // Ops.PUSH
-                                curr = _dispatch(auth, curr, end);
-                            }
-                        } else {
-                            if (method == Ops.RESET) {
-                                // Ops.RESET
-                                _copy(auth, startingAuth);
-                            } else {
-                                // Ops.SUDO
-                                address who;
-                                (who, curr) = curr.nextAddress();
-                                Permissions permissions =
-                                    users[who].authorizations[auth.authenticated].permissions & auth.permissions;
-                                require(permissions != NONE, Unauthorized(who, auth.authenticated));
-                                auth.authenticated = who;
-                                auth.permissions = permissions;
-                            }
-                        }
+            if (method < Ops.WITHDRAW) {
+                if (method < Ops.SUDO) {
+                    if (method == Ops.POP) {
+                        return curr;
+                    } else if (method == Ops.PUSH) {
+                        curr = _dispatch(auth, curr, end);
                     } else {
-                        if (method < 6) {
-                            if (method == Ops.SETTOKEN) {
-                                // Ops.SETTOKEN
-                                address token;
-                                (token, curr) = curr.nextAddress();
-                                auth.token = uint256(uint160(token));
-                            } else {
-                                // Ops.CREATERAIL
-                                // the rail ops that follow address what this created
-                                (auth.from, curr) = curr.nextAddress();
-                                (auth.recipient, curr) = curr.nextAddress();
-                                (auth.nonce, curr) = curr.nextU32();
-                                _createRail(
-                                    auth.authenticated,
-                                    auth.from,
-                                    auth.recipient,
-                                    auth.nonce,
-                                    auth.token,
-                                    auth.permissions
-                                );
-                            }
-                        } else {
-                            uint128 amount;
-                            (amount, curr) = curr.nextU128();
-                            if (method == Ops.DEPOSIT) {
-                                // Ops.DEPOSIT
-                                require(
-                                    auth.permissions & DEPOSIT != NONE, Unauthorized(auth.authenticated, msg.sender)
-                                );
-                                _depositTo(auth.token, auth.authenticated, auth.authenticated, amount);
-                            } else {
-                                // Ops.DEPOSITTO
-                                require(
-                                    auth.permissions & DEPOSIT_TO == DEPOSIT_TO,
-                                    Unauthorized(auth.authenticated, msg.sender)
-                                );
-                                address recipient;
-                                (recipient, curr) = curr.nextAddress();
-                                _depositTo(auth.token, auth.authenticated, recipient, amount);
-                            }
-                        }
+                        // Ops.RESET
+                        _copy(auth, startingAuth);
                     }
                 } else {
-                    if (method < 12) {
-                        uint128 amount;
-                        (amount, curr) = curr.nextU128();
-                        if (method < 10) {
-                            address recipient = auth.authenticated;
-                            if (method == Ops.WITHDRAW) {
-                                require(
-                                    auth.permissions & WITHDRAW != NONE, Unauthorized(auth.authenticated, msg.sender)
-                                );
-                            } else {
-                                // Ops.WITHDRAWTO
-                                require(
-                                    auth.permissions & WITHDRAW_TO == WITHDRAW_TO,
-                                    Unauthorized(auth.authenticated, msg.sender)
-                                );
-                                (recipient, curr) = curr.nextAddress();
-                            }
-                            _withdrawTo(auth.token, auth.authenticated, recipient, amount);
+                    // every op from here to Ops.SETTLERAIL leads with an address
+                    address who;
+                    (who, curr) = curr.nextAddress();
+                    if (method < Ops.CREATERAIL) {
+                        if (method == Ops.SETTOKEN) {
+                            auth.token = uint256(uint160(who));
                         } else {
-                            require(auth.permissions & TRANSFER != NONE, Unauthorized(auth.authenticated, msg.sender));
-                            if (method == Ops.TRANSFER) {
-                                address recipient;
-                                (recipient, curr) = curr.nextAddress();
-                                _move(
-                                    users[auth.authenticated].accounts[auth.token],
-                                    recipient,
-                                    auth.authenticated,
-                                    auth.token,
-                                    amount
-                                );
-                            } else {
-                                // Ops.TRANSFERFROM
-                                address owner;
-                                address recipient;
-                                (owner, curr) = curr.nextAddress();
-                                (recipient, curr) = curr.nextAddress();
-                                _transferFrom(auth.authenticated, owner, recipient, auth.token, amount);
-                            }
+                            // Ops.SUDO
+                            Permissions permissions =
+                                users[who].authorizations[auth.authenticated].permissions & auth.permissions;
+                            require(permissions != NONE, Unauthorized(who, auth.authenticated));
+                            auth.authenticated = who;
+                            auth.permissions = permissions;
                         }
                     } else {
-                        if (method < 14) {
-                            uint128 amount;
-                            (amount, curr) = curr.nextU128();
-                            Stream storage stream = _existingRail(auth);
-                            if (method == Ops.LOCK) {
-                                _lock(stream, users[auth.from].accounts[auth.token], amount);
-                            } else {
-                                // Ops.UNLOCK
-                                _unlock(stream, users[auth.from].accounts[auth.token], amount);
-                            }
+                        // Ops.CREATERAIL, Ops.SETTLERAIL: `who` is the payer of both
+                        address recipient;
+                        uint32 nonce;
+                        (recipient, curr) = curr.nextAddress();
+                        (nonce, curr) = curr.nextU32();
+                        if (method == Ops.CREATERAIL) {
+                            // the rail ops that follow address what this created
+                            auth.from = who;
+                            auth.recipient = recipient;
+                            auth.nonce = nonce;
+                            _createRail(auth.authenticated, who, recipient, nonce, auth.token, auth.permissions);
                         } else {
-                            // Ops.INCREASERATE, Ops.DECREASERATE
-                            uint88 delta;
-                            (delta, curr) = curr.nextU88();
-                            Stream storage stream =
-                                _settleForRate(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
-                            uint88 previousRate = stream.state.incomingRate;
-                            _setRate(
-                                stream,
-                                users[auth.from].accounts[auth.token],
-                                previousRate,
-                                method == Ops.INCREASERATE ? previousRate + delta : previousRate - delta
-                            );
+                            // Ops.SETTLERAIL
+                            address operator;
+                            (operator, curr) = curr.nextAddress();
+                            _settleRail(operator, who, recipient, nonce, auth.token);
                         }
                     }
                 }
-            } else {
-                if (method < 24) {
-                    if (method < 20) {
-                        if (method < 18) {
-                            if (method == Ops.TRANSFERALL) {
-                                require(
-                                    auth.permissions & TRANSFER != NONE, Unauthorized(auth.authenticated, msg.sender)
-                                );
-                                address recipient;
-                                (recipient, curr) = curr.nextAddress();
-                                Account storage debit = users[auth.authenticated].accounts[auth.token];
-                                // what the rails have accrued stays behind, as under any other debit
-                                _move(debit, recipient, auth.authenticated, auth.token, current(debit.latest));
-                            } else {
-                                // Ops.SETTLERAIL
-                                address operator;
-                                address from;
-                                address recipient;
-                                uint32 nonce;
-                                (operator, curr) = curr.nextAddress();
-                                (from, curr) = curr.nextAddress();
-                                (recipient, curr) = curr.nextAddress();
-                                (nonce, curr) = curr.nextU32();
-                                _settleRail(operator, from, recipient, nonce, auth.token);
-                            }
-                        } else {
-                            if (method == Ops.DISBURSEALL) {
-                                _disburseAll(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
-                            } else {
-                                // Ops.DISBURSE
-                                uint128 amount;
-                                (amount, curr) = curr.nextU128();
-                                _disburse(
-                                    auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce),
-                                    auth.authenticated,
-                                    auth.from,
-                                    auth.recipient,
-                                    auth.token,
-                                    amount
-                                );
-                            }
-                        }
+            } else if (method < Ops.INCREASERATE) {
+                Permissions scope = Permissions.wrap((PERMISSION_BY_OP >> (method << 2)) & 0xf);
+                require(auth.permissions & scope == scope, Unauthorized(auth.authenticated, msg.sender));
+                if (method < Ops.TRANSFER) {
+                    // Ops.WITHDRAW, Ops.DEPOSIT, Ops.WITHDRAWTO, Ops.DEPOSITTO
+                    uint128 amount;
+                    (amount, curr) = curr.nextU128();
+                    address recipient = auth.authenticated;
+                    if (method > Ops.DEPOSIT) {
+                        (recipient, curr) = curr.nextAddress();
+                    }
+                    // Script.sol numbers the two directions by parity
+                    if (method & 1 == 0) {
+                        _depositTo(auth.token, auth.authenticated, recipient, amount);
                     } else {
-                        if (method == Ops.SETRATE) {
-                            uint88 rate;
-                            (rate, curr) = curr.nextU88();
-                            Stream storage stream =
-                                _settleForRate(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
-                            _setRate(stream, users[auth.from].accounts[auth.token], stream.state.incomingRate, rate);
-                        } else {
-                            // Ops.SETAVAILABLE
-                            uint128 target;
-                            (target, curr) = curr.nextU128();
-                            Stream storage stream = _existingRail(auth);
-                            Account storage from = users[auth.from].accounts[auth.token];
-                            uint128 available = stream.state.available;
-                            unchecked {
-                                if (target > available) {
-                                    _lock(stream, from, target - available);
-                                } else {
-                                    _unlock(stream, from, available - target);
-                                }
-                            }
-                        }
+                        _withdrawTo(auth.token, auth.authenticated, recipient, amount);
                     }
                 } else {
-                    // 24 25 26 27 28 29 30 31
+                    // Ops.TRANSFER, Ops.TRANSFERFROM, Ops.TRANSFERALL
+                    address recipient;
+                    (recipient, curr) = curr.nextAddress();
+                    if (method == Ops.TRANSFERFROM) {
+                        uint128 amount;
+                        address owner;
+                        (amount, curr) = curr.nextU128();
+                        (owner, curr) = curr.nextAddress();
+                        _transferFrom(auth.authenticated, owner, recipient, auth.token, amount);
+                    } else {
+                        Account storage debit = users[auth.authenticated].accounts[auth.token];
+                        uint256 amount;
+                        if (method == Ops.TRANSFER) {
+                            uint128 operand;
+                            (operand, curr) = curr.nextU128();
+                            amount = operand;
+                        } else {
+                            // Ops.TRANSFERALL: what the rails have accrued stays behind
+                            amount = current(debit.latest);
+                        }
+                        _move(debit, recipient, auth.authenticated, auth.token, amount);
+                    }
+                }
+            } else {
+                if (method < Ops.DISBURSEALL) {
+                    // Ops.INCREASERATE, Ops.DECREASERATE, Ops.SETRATE
+                    uint88 rate;
+                    (rate, curr) = curr.nextU88();
+                    Stream storage stream =
+                        _settleForRate(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
+                    uint88 previousRate = stream.state.incomingRate;
+                    if (method == Ops.INCREASERATE) {
+                        rate = previousRate + rate;
+                    } else if (method == Ops.DECREASERATE) {
+                        rate = previousRate - rate;
+                    }
+                    _setRate(stream, users[auth.from].accounts[auth.token], previousRate, rate);
+                } else {
+                    // Ops.DISBURSEALL, Ops.DISBURSE, Ops.LOCK, Ops.UNLOCK, Ops.SETAVAILABLE
+                    Stream storage stream = _existingRail(auth);
+                    uint128 amount;
+                    if (method == Ops.DISBURSEALL) {
+                        amount = stream.state.available;
+                    } else {
+                        (amount, curr) = curr.nextU128();
+                    }
+                    if (method < Ops.LOCK) {
+                        _disburse(stream, auth.authenticated, auth.from, auth.recipient, auth.token, amount);
+                    } else {
+                        bool add = method != Ops.UNLOCK;
+                        if (method == Ops.SETAVAILABLE) {
+                            uint128 available = stream.state.available;
+                            add = amount > available;
+                            unchecked {
+                                amount = add ? amount - available : available - amount;
+                            }
+                        }
+                        _lockup(stream, users[auth.from].accounts[auth.token], amount, add);
+                    }
                 }
             }
         }

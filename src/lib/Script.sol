@@ -1,27 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
+// ops that share a prologue are numbered adjacently, so that _dispatch reads the operands and
+// runs the checks they have in common once: contract code costs Filecoin gas on every call
+
 uint256 constant POP = 0;
 uint256 constant PUSH = 1;
 uint256 constant RESET = 2;
 uint256 constant SUDO = 3;
 uint256 constant SETTOKEN = 4;
 uint256 constant CREATERAIL = 5;
-uint256 constant DEPOSIT = 6;
-uint256 constant DEPOSITTO = 7;
-uint256 constant WITHDRAW = 8;
+uint256 constant SETTLERAIL = 6;
+// _dispatch tells these four apart by order and parity: the bare pair leads the TO pair,
+// and an even op deposits where an odd op withdraws
+uint256 constant WITHDRAW = 7;
+uint256 constant DEPOSIT = 8;
 uint256 constant WITHDRAWTO = 9;
-uint256 constant TRANSFER = 10;
-uint256 constant TRANSFERFROM = 11;
-uint256 constant LOCK = 12;
-uint256 constant UNLOCK = 13;
+uint256 constant DEPOSITTO = 10;
+uint256 constant TRANSFER = 11;
+uint256 constant TRANSFERFROM = 12;
+uint256 constant TRANSFERALL = 13;
 uint256 constant INCREASERATE = 14;
 uint256 constant DECREASERATE = 15;
-uint256 constant TRANSFERALL = 16;
-uint256 constant SETTLERAIL = 17;
-uint256 constant DISBURSEALL = 18;
-uint256 constant DISBURSE = 19;
-uint256 constant SETRATE = 20;
+uint256 constant SETRATE = 16;
+uint256 constant DISBURSEALL = 17;
+uint256 constant DISBURSE = 18;
+uint256 constant LOCK = 19;
+uint256 constant UNLOCK = 20;
 uint256 constant SETAVAILABLE = 21;
 
 /// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
@@ -106,25 +111,18 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function deposit(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
-        assembly ("memory-safe") {
-            let buf := mload(0x40)
-            mstore(buf, or(shl(248, DEPOSIT), shl(120, amount)))
-            mstore(0x40, add(17, buf))
-        }
-        return scriptBuilder;
-    }
-
-    function depositTo(bytes memory scriptBuilder, uint128 amount, address recipient)
+    /// @dev the operator trails the rail CREATERAIL also names, which is what lets them share a read
+    function settleRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce, address operator)
         internal
         pure
         returns (bytes memory)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, DEPOSITTO), shl(120, amount)))
-            mstore(add(17, buf), shl(96, recipient))
-            mstore(0x40, add(37, buf))
+            mstore(buf, or(shl(248, SETTLERAIL), shl(88, from)))
+            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
+            mstore(add(45, buf), shl(96, operator))
+            mstore(0x40, add(65, buf))
         }
         return scriptBuilder;
     }
@@ -133,6 +131,15 @@ library ScriptBuilder {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, WITHDRAW), shl(120, amount)))
+            mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function deposit(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, DEPOSIT), shl(120, amount)))
             mstore(0x40, add(17, buf))
         }
         return scriptBuilder;
@@ -152,49 +159,56 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function transfer(bytes memory scriptBuilder, uint128 amount, address recipient)
+    function depositTo(bytes memory scriptBuilder, uint128 amount, address recipient)
         internal
         pure
         returns (bytes memory)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, TRANSFER), shl(120, amount)))
+            mstore(buf, or(shl(248, DEPOSITTO), shl(120, amount)))
             mstore(add(17, buf), shl(96, recipient))
             mstore(0x40, add(37, buf))
         }
         return scriptBuilder;
     }
 
-    function transferFrom(bytes memory scriptBuilder, uint128 amount, address owner, address recipient)
+    /// @dev the recipient leads, so TRANSFERALL shares the read
+    function transfer(bytes memory scriptBuilder, address recipient, uint128 amount)
         internal
         pure
         returns (bytes memory)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, TRANSFERFROM), shl(120, amount)))
-            mstore(add(17, buf), shl(96, owner))
-            mstore(add(37, buf), shl(96, recipient))
+            mstore(buf, or(shl(248, TRANSFER), shl(88, recipient)))
+            mstore(add(21, buf), shl(128, amount))
+            mstore(0x40, add(37, buf))
+        }
+        return scriptBuilder;
+    }
+
+    /// @dev the owner trails what TRANSFER also names, which is what lets them share a read
+    function transferFrom(bytes memory scriptBuilder, address recipient, uint128 amount, address owner)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, TRANSFERFROM), shl(88, recipient)))
+            mstore(add(21, buf), shl(128, amount))
+            mstore(add(37, buf), shl(96, owner))
             mstore(0x40, add(57, buf))
         }
         return scriptBuilder;
     }
 
-    function lock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function transferAll(bytes memory scriptBuilder, address recipient) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, LOCK), shl(120, amount)))
-            mstore(0x40, add(17, buf))
-        }
-        return scriptBuilder;
-    }
-
-    function unlock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
-        assembly ("memory-safe") {
-            let buf := mload(0x40)
-            mstore(buf, or(shl(248, UNLOCK), shl(120, amount)))
-            mstore(0x40, add(17, buf))
+            mstore(buf, or(shl(248, TRANSFERALL), shl(88, recipient)))
+            mstore(0x40, add(21, buf))
         }
         return scriptBuilder;
     }
@@ -217,26 +231,11 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function transferAll(bytes memory scriptBuilder, address recipient) internal pure returns (bytes memory) {
+    function setRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, TRANSFERALL), shl(88, recipient)))
-            mstore(0x40, add(21, buf))
-        }
-        return scriptBuilder;
-    }
-
-    function settleRail(bytes memory scriptBuilder, address operator, address from, address recipient, uint32 nonce)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        assembly ("memory-safe") {
-            let buf := mload(0x40)
-            mstore(buf, or(shl(248, SETTLERAIL), shl(88, operator)))
-            mstore(add(21, buf), shl(96, from))
-            mstore(add(41, buf), or(shl(96, recipient), shl(64, nonce)))
-            mstore(0x40, add(65, buf))
+            mstore(buf, or(shl(248, SETRATE), shl(160, rate)))
+            mstore(0x40, add(12, buf))
         }
         return scriptBuilder;
     }
@@ -259,11 +258,20 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function setRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+    function lock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
-            mstore(buf, or(shl(248, SETRATE), shl(160, rate)))
-            mstore(0x40, add(12, buf))
+            mstore(buf, or(shl(248, LOCK), shl(120, amount)))
+            mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function unlock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, UNLOCK), shl(120, amount)))
+            mstore(0x40, add(17, buf))
         }
         return scriptBuilder;
     }

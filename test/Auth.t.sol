@@ -74,7 +74,7 @@ contract AuthTest is Test {
         vm.prank(ALICE);
         pay.deposit(address(token), 500);
 
-        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).transfer(200, BOB).build();
+        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).transfer(BOB, 200).build();
         vm.prank(ALICE);
         vm.expectEmit(address(pay));
         emit IERC6909.Transfer(ALICE, ALICE, BOB, tokenId, 200);
@@ -118,7 +118,7 @@ contract AuthTest is Test {
         vm.prank(ALICE);
         pay.approve(BOB, tokenId, 300);
 
-        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).transferFrom(200, ALICE, BOB).build();
+        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).transferFrom(BOB, 200, ALICE).build();
         vm.prank(BOB);
         vm.expectEmit(address(pay));
         emit IERC6909.Transfer(BOB, ALICE, BOB, tokenId, 200);
@@ -141,7 +141,7 @@ contract AuthTest is Test {
         _authorize(CAROL, BOB, ALL);
 
         bytes memory script =
-            ScriptBuilder.newScript().setToken(address(token)).sudo(CAROL).transferFrom(200, ALICE, BOB).build();
+            ScriptBuilder.newScript().setToken(address(token)).sudo(CAROL).transferFrom(BOB, 200, ALICE).build();
         vm.prank(BOB);
         pay.executeScript(script);
 

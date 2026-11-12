@@ -253,7 +253,7 @@ contract RailTest is Test {
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         // the dispatcher starts on auth.token 0, the native token
-        bytes memory script = ScriptBuilder.newScript().settleRail(address(this), alice, bob, nonce).build();
+        bytes memory script = ScriptBuilder.newScript().settleRail(alice, bob, nonce, address(this)).build();
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.executeScript(script);
     }

@@ -8,6 +8,7 @@ import {
     DECREASERATE,
     DEPOSIT,
     DEPOSITTO,
+    DISBURSE,
     DISBURSEALL,
     INCREASERATE,
     LOCK,
@@ -50,15 +51,16 @@ contract ScriptBuilderTest is Test {
             .depositTo(MAX_AMOUNT, BOB)
             .withdraw(MAX_AMOUNT)
             .withdrawTo(MAX_AMOUNT, BOB)
-            .transfer(MAX_AMOUNT, BOB)
-            .transferFrom(MAX_AMOUNT, ALICE, MAX_ADDRESS)
+            .transfer(BOB, MAX_AMOUNT)
+            .transferFrom(MAX_ADDRESS, MAX_AMOUNT, ALICE)
             .lock(MAX_AMOUNT)
             .unlock(5)
             .increaseRate(MAX_RATE)
             .decreaseRate(7)
             .transferAll(MAX_ADDRESS)
             .disburseAll()
-            .settleRail(MAX_ADDRESS, ALICE, BOB, MAX_NONCE)
+            .disburse(9)
+            .settleRail(ALICE, BOB, MAX_NONCE, MAX_ADDRESS)
             .setRate(MAX_RATE)
             .setAvailable(MAX_AMOUNT)
             .reset()
@@ -88,12 +90,12 @@ contract ScriptBuilderTest is Test {
                 MAX_AMOUNT,
                 BOB,
                 uint8(TRANSFER),
-                MAX_AMOUNT,
                 BOB,
+                MAX_AMOUNT,
                 uint8(TRANSFERFROM),
+                MAX_ADDRESS,
                 MAX_AMOUNT,
                 ALICE,
-                MAX_ADDRESS,
                 uint8(LOCK),
                 MAX_AMOUNT,
                 uint8(UNLOCK),
@@ -105,11 +107,13 @@ contract ScriptBuilderTest is Test {
                 uint8(TRANSFERALL),
                 MAX_ADDRESS,
                 uint8(DISBURSEALL),
+                uint8(DISBURSE),
+                uint128(9),
                 uint8(SETTLERAIL),
-                MAX_ADDRESS,
                 ALICE,
                 BOB,
                 MAX_NONCE,
+                MAX_ADDRESS,
                 uint8(SETRATE),
                 MAX_RATE,
                 uint8(SETAVAILABLE),

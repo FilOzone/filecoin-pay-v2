@@ -27,7 +27,7 @@ MNEMONIC = "test test test test test test test test test test test junk"
 NATIVE_TOKEN = 0
 
 # src/lib/Script.sol opcodes
-POP, PUSH, SUDO, SETTOKEN, CREATERAIL, DEPOSIT = 0, 1, 3, 4, 5, 6
+POP, PUSH, SUDO, SETTOKEN, CREATERAIL, DEPOSIT = 0, 1, 3, 4, 5, 8
 # src/lib/Permissions.sol
 ALL = (1 << 256) - 1
 CREATE_RAIL = 1 << 3
