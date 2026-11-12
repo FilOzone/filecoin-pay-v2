@@ -7,11 +7,13 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {CREATE_RAIL} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
+import {ScriptBuilder} from "../src/lib/Script.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
 contract RailTest is Test {
     using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
+    using ScriptBuilder for bytes;
 
     FilecoinPayV2 internal payments;
 
@@ -141,6 +143,21 @@ contract RailTest is Test {
         assertEq(state.incomingRate, 0);
         assertEq(state.settledUpTo, fiftyAt + 10);
         assertEq(state.available, 0);
+    }
+
+    function testSettleRailNotCreated() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+
+        // the dispatcher starts on auth.token 0, the native token
+        bytes memory script = ScriptBuilder.newScript().settleRail(address(this), alice, bob, nonce).build();
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.executeScript(script);
     }
 
     function testLock() public {

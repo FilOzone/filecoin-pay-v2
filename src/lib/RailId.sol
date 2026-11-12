@@ -60,6 +60,11 @@ library RailIdLibrary {
         }
     }
 
+    /// @dev init() stamps the creation epoch, which never returns to zero
+    function exists(StreamState memory state) internal pure returns (bool) {
+        return state.settledUpTo != 0;
+    }
+
     function init(Stream storage stream) internal {
         assembly ("memory-safe") {
             sstore(stream.slot, shl(88, number()))

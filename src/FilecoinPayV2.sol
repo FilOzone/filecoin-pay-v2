@@ -21,6 +21,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for uint256;
     using RailIdLibrary for address;
     using RailIdLibrary for Stream;
+    using RailIdLibrary for StreamState;
     using SafeTransferLib for address;
 
     struct Authorization {
@@ -168,12 +169,13 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         emit OperatorSet(msg.sender, operator, permissions.isOperator());
     }
 
+    error RailNotCreated();
+
     function settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
         external
         validToken(token)
         returns (uint256 settledUpTo)
     {
-        // TODO: check exists()
         return _settleRail(operator, from, recipient, nonce, token);
     }
 
@@ -183,6 +185,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     {
         Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
         StreamState memory loadedStream = stream.state;
+        require(loadedStream.exists(), RailNotCreated());
 
         unchecked {
             settledUpTo = canSettleTo(users[from].accounts[token].latest);
@@ -221,8 +224,6 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             }
         }
     }
-
-    error RailNotCreated();
 
     function lock(address from, address recipient, uint32 nonce, uint256 token, uint256 amount)
         external
@@ -568,7 +569,6 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                                 (from, curr) = curr.nextAddress();
                                 (recipient, curr) = curr.nextAddress();
                                 (nonce, curr) = curr.nextU32();
-                                // TODO: check exists()
                                 _settleRail(operator, from, recipient, nonce, auth.token);
                             }
                         } else {
