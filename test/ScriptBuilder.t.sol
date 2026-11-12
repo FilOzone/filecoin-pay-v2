@@ -14,6 +14,8 @@ import {
     POP,
     PUSH,
     RESET,
+    SETAVAILABLE,
+    SETRATE,
     SETTLERAIL,
     SETTOKEN,
     SUDO,
@@ -57,6 +59,8 @@ contract ScriptBuilderTest is Test {
             .transferAll(MAX_ADDRESS)
             .disburseAll()
             .settleRail(MAX_ADDRESS, ALICE, BOB, MAX_NONCE)
+            .setRate(MAX_RATE)
+            .setAvailable(MAX_AMOUNT)
             .reset()
             .pop()
             .build();
@@ -106,6 +110,10 @@ contract ScriptBuilderTest is Test {
                 ALICE,
                 BOB,
                 MAX_NONCE,
+                uint8(SETRATE),
+                MAX_RATE,
+                uint8(SETAVAILABLE),
+                MAX_AMOUNT,
                 uint8(RESET),
                 uint8(POP)
             )

@@ -21,6 +21,8 @@ uint256 constant TRANSFERALL = 16;
 uint256 constant SETTLERAIL = 17;
 uint256 constant DISBURSEALL = 18;
 uint256 constant DISBURSE = 19;
+uint256 constant SETRATE = 20;
+uint256 constant SETAVAILABLE = 21;
 
 /// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
 /// @dev Important: do not allocate memory when building scripts
@@ -252,6 +254,24 @@ library ScriptBuilder {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, DISBURSE), shl(120, amount)))
+            mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function setRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, SETRATE), shl(160, rate)))
+            mstore(0x40, add(12, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function setAvailable(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, SETAVAILABLE), shl(120, amount)))
             mstore(0x40, add(17, buf))
         }
         return scriptBuilder;

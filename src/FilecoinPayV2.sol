@@ -440,6 +440,12 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
     error Unauthorized(address user, address operator);
 
+    function _existingRail(Auth memory auth) internal view returns (Stream storage stream) {
+        stream = auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce);
+        // TODO(perf): this duplicates the read of stream.state
+        require(stream.exists(), RailNotCreated());
+    }
+
     function _duplicate(Auth memory auth) internal pure returns (Auth memory next) {
         assembly ("memory-safe") {
             next := mload(0x40)
@@ -657,10 +663,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                         if (method < 14) {
                             uint128 amount;
                             (amount, curr) = curr.nextU128();
-                            Stream storage stream =
-                                auth.authenticated.deriveRail(auth.from, auth.recipient, auth.token, auth.nonce);
-                            // TODO(perf): this duplicates the read of stream.state
-                            require(stream.exists(), RailNotCreated());
+                            Stream storage stream = _existingRail(auth);
                             if (method == Ops.LOCK) {
                                 _lock(stream, users[auth.from].accounts[auth.token], amount);
                             } else {
@@ -726,7 +729,27 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                             }
                         }
                     } else {
-                        // 20 21 22 23
+                        if (method == Ops.SETRATE) {
+                            uint88 rate;
+                            (rate, curr) = curr.nextU88();
+                            Stream storage stream =
+                                _settleForRate(auth.authenticated, auth.from, auth.recipient, auth.nonce, auth.token);
+                            _setRate(stream, users[auth.from].accounts[auth.token], stream.state.incomingRate, rate);
+                        } else {
+                            // Ops.SETAVAILABLE
+                            uint128 target;
+                            (target, curr) = curr.nextU128();
+                            Stream storage stream = _existingRail(auth);
+                            Account storage from = users[auth.from].accounts[auth.token];
+                            uint128 available = stream.state.available;
+                            unchecked {
+                                if (target > available) {
+                                    _lock(stream, from, target - available);
+                                } else {
+                                    _unlock(stream, from, available - target);
+                                }
+                            }
+                        }
                     }
                 } else {
                     // 24 25 26 27 28 29 30 31

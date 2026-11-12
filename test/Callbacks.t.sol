@@ -100,6 +100,48 @@ contract CallbacksTest is Test {
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
     }
 
+    function testSetOps() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = FLAG_CALLBACK;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        uint256 createdAt = vm.getBlockNumber();
+        RailId railId = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 1000);
+        vm.prank(alice);
+        payments.deposit{value: 1000}();
+
+        vm.roll(createdAt + 1);
+        mockScript = ScriptBuilder.newScript().setRate(10).setAvailable(100).build();
+        expectSettleRail(railId, createdAt, createdAt + 1, 0, 0);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.getRail(railId).incomingRate, 10);
+        assertEq(payments.getRail(railId).available, 100);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 900);
+
+        // settling adds 2 blocks at 10 to the lockup, which the target replaces rather than adds to
+        vm.roll(createdAt + 3);
+        mockScript = ScriptBuilder.newScript().setRate(4).setAvailable(50).build();
+        expectSettleRail(railId, createdAt + 1, createdAt + 3, 100, 20);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.getRail(railId).incomingRate, 4, "the rate is set, not adjusted");
+        assertEq(payments.getRail(railId).available, 50, "the lockup is set, not adjusted");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 950, "unlocking 70 refunds what the target gave up");
+
+        // the script runs after the settle it belongs to, so the target counts what that settle locked
+        vm.roll(createdAt + 4);
+        mockScript = ScriptBuilder.newScript().setAvailable(0).build();
+        expectSettleRail(railId, createdAt + 3, createdAt + 4, 50, 4);
+        payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.getRail(railId).available, 0);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 1000);
+    }
+
     function testCallback() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
