@@ -27,20 +27,38 @@ MNEMONIC = "test test test test test test test test test test test junk"
 NATIVE_TOKEN = 0
 
 # src/lib/Script.sol opcodes
-POP, PUSH, SUDO, SETTOKEN, AUTHORIZE = 0, 1, 3, 4, 5
-SETRAIL, CREATERAIL, DEPOSIT, LOCK = 6, 7, 10, 21
-# src/lib/Permissions.sol
-ALL = (1 << 256) - 1
-CREATE_RAIL = 1 << 3
+POP, PUSH, RESET, SUDO, SETTOKEN, AUTHORIZE = 0, 1, 2, 3, 4, 5
+SETRAIL, CREATERAIL, SETTLERAIL = 6, 7, 8
+WITHDRAW, DEPOSIT, WITHDRAWTO, DEPOSITTO = 9, 10, 11, 12
+TRANSFER, TRANSFERFROM, TRANSFERALL = 13, 14, 15
+INCREASERATE, DECREASERATE, SETRATE = 16, 17, 18
+DISBURSEALL, DISBURSE, LOCK, UNLOCK, SETAVAILABLE = 19, 20, 21, 22, 23
+NATIVE = "0x" + "00" * 20
+# src/lib/Permissions.sol, suffixed so no permission reads as one of the opcodes above
+ALL_PERMISSION = (1 << 256) - 1
+TRANSFER_PERMISSION = 1 << 2
+CREATE_RAIL_PERMISSION = 1 << 3
 
 # test/Auth.t.sol:testPushSudoDepositPopDeposit
 SUDO_DEPOSIT = 100
 SELF_DEPOSIT = 30
+# the token entry points and the script that moves balances around with every move op
+TOKEN_DEPOSIT = 100
+TOKEN_DEPOSIT_TO = 50
+TOKEN_MOVE = 10
+# what the heaviest holder can send out of their own wallet across a whole sequence
+TOKEN_MINT = SUDO_DEPOSIT + SELF_DEPOSIT + TOKEN_DEPOSIT + 2 * TOKEN_DEPOSIT_TO
 # Rail.t.sol amounts, scaled so per-block drain cannot outrun the payer between transactions
 RAIL_DEPOSIT = 10**6
 RAIL_RATE = 50
 RAIL_LOCK = 50
 RAIL_DISBURSE = 25
+RAIL_WITHDRAW = 100
+# the lockup script leaves room to disburse and unlock before it empties the lockup
+RAIL_AVAILABLE = 200
+RAIL_UNLOCK = 75
+RAIL_RATE_DELTA = 25
+RAIL_RATE_FINAL = 10
 # the rails sequence ends on a terminated nonce 0, so the script creates a rail that never existed
 SCRIPT_RAIL_NONCE = 1
 
@@ -282,7 +300,7 @@ class Runner:
         self.result["configuration"]["mockERC20"] = self.token
 
     def erc20_setup(self) -> None:
-        total = str(SUDO_DEPOSIT + SELF_DEPOSIT)
+        total = str(TOKEN_MINT)
         for label, holder in (("alice", self.alice), ("bob", self.bob)):
             self.step(
                 f"MockERC20.mint({label})", self.operator, to=self.token,
@@ -375,13 +393,89 @@ class Runner:
             )
         ).hex()
 
+    def move_ops_script(self) -> str:
+        """Every op that moves a balance. Bob runs it: he is alice's operator, so TRANSFERFROM
+        needs no allowance, and TRANSFERALL goes last because it empties him."""
+        return "0x" + b"".join(
+            (
+                bytes([SETTOKEN]),
+                bytes.fromhex(self.token[2:]),
+                bytes([DEPOSITTO]),
+                TOKEN_DEPOSIT_TO.to_bytes(16, "big"),
+                bytes.fromhex(self.alice[2:]),
+                bytes([TRANSFER]),
+                bytes.fromhex(self.carol[2:]),
+                TOKEN_MOVE.to_bytes(16, "big"),
+                bytes([TRANSFERFROM]),
+                bytes.fromhex(self.carol[2:]),
+                TOKEN_MOVE.to_bytes(16, "big"),
+                bytes.fromhex(self.alice[2:]),
+                bytes([WITHDRAW]),
+                TOKEN_MOVE.to_bytes(16, "big"),
+                bytes([WITHDRAWTO]),
+                TOKEN_MOVE.to_bytes(16, "big"),
+                bytes.fromhex(self.carol[2:]),
+                bytes([TRANSFERALL]),
+                bytes.fromhex(self.alice[2:]),
+            )
+        ).hex()
+
+    def rate_ops_script(self) -> str:
+        """The three rate ops against the rail SETRAIL names, each settling at the same block."""
+        return "0x" + b"".join(
+            (
+                bytes([SETRAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+                bytes([INCREASERATE]),
+                RAIL_RATE.to_bytes(11, "big"),
+                bytes([DECREASERATE]),
+                RAIL_RATE_DELTA.to_bytes(11, "big"),
+                bytes([SETRATE]),
+                RAIL_RATE_FINAL.to_bytes(11, "big"),
+            )
+        ).hex()
+
+    def lockup_ops_script(self) -> str:
+        """Every lockup op, ordered so the lockup never runs dry before DISBURSEALL empties it."""
+        return "0x" + b"".join(
+            (
+                bytes([SETRAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+                bytes([SETAVAILABLE]),
+                RAIL_AVAILABLE.to_bytes(16, "big"),
+                bytes([DISBURSE]),
+                RAIL_DISBURSE.to_bytes(16, "big"),
+                bytes([UNLOCK]),
+                RAIL_UNLOCK.to_bytes(16, "big"),
+                bytes([DISBURSEALL]),
+            )
+        ).hex()
+
+    def settle_reset_script(self) -> str:
+        """SETTLERAIL names its rail outright, so the nested frame it runs in is thrown away."""
+        return "0x" + b"".join(
+            (
+                bytes([PUSH, SETTLERAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+                bytes.fromhex(self.operator[2:]),
+                bytes([POP, RESET]),
+            )
+        ).hex()
+
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
         rail = [self.alice, self.bob, "0", str(NATIVE_TOKEN)]
         return {
             "erc6909": [
                 {"name": "authorize(bob, ALL)", "sender": self.alice,
-                 "signature": "authorize(address,uint256)", "arguments": [self.bob, str(ALL)]},
+                 "signature": "authorize(address,uint256)",
+                 "arguments": [self.bob, str(ALL_PERMISSION)]},
                 {"name": "executeScript/pushSudoDepositPopDeposit", "sender": self.bob,
                  "signature": "executeScript(bytes)", "arguments": [self.script()],
                  "check": self.check},
@@ -398,11 +492,31 @@ class Runner:
                  "signature": "setOperator(address,bool)", "arguments": [self.carol, "true"]},
                 {"name": "executeScript/authorize", "sender": self.alice,
                  "signature": "executeScript(bytes)", "arguments": [self.authorize_script()]},
+                # the same script through the scoped entry point, to price the scope argument.
+                # the scope has to narrow the grant, or the write repeats the step before it and
+                # the FVM flushes nothing, which costs 14M less and compares against nothing
+                {"name": "executeScript(scope)/authorize", "sender": self.alice,
+                 "signature": "executeScript(uint256,bytes)",
+                 "arguments": [str(ALL_PERMISSION ^ TRANSFER_PERMISSION), self.authorize_script()]},
+                {"name": "deposit (token)", "sender": self.alice,
+                 "signature": "deposit(address,uint256)",
+                 "arguments": [self.token, str(TOKEN_DEPOSIT)]},
+                {"name": "depositTo (token)", "sender": self.alice,
+                 "signature": "depositTo(address,address,uint256)",
+                 "arguments": [self.token, self.bob, str(TOKEN_DEPOSIT_TO)]},
+                {"name": "withdraw (token)", "sender": self.alice,
+                 "signature": "withdraw(address,uint256)",
+                 "arguments": [self.token, str(TOKEN_MOVE)]},
+                {"name": "withdrawTo (token)", "sender": self.alice,
+                 "signature": "withdrawTo(address,address,uint256)",
+                 "arguments": [self.token, self.carol, str(TOKEN_MOVE)]},
+                {"name": "executeScript/moveOps", "sender": self.bob,
+                 "signature": "executeScript(bytes)", "arguments": [self.move_ops_script()]},
             ],
             "rails": [
                 {"name": "authorize(operator, CREATE_RAIL)", "sender": self.alice,
                  "signature": "authorize(address,uint256)",
-                 "arguments": [self.operator, str(CREATE_RAIL)]},
+                 "arguments": [self.operator, str(CREATE_RAIL_PERMISSION)]},
                 {"name": "createRail", "sender": self.operator,
                  "signature": "createRail(address,address,uint32,uint256)", "arguments": rail},
                 {"name": "deposit (native)", "sender": self.alice,
@@ -429,6 +543,17 @@ class Runner:
                  "signature": "executeScript(bytes)", "arguments": [self.create_rail_script()]},
                 {"name": "executeScript/setRail", "sender": self.operator,
                  "signature": "executeScript(bytes)", "arguments": [self.set_rail_script()]},
+                {"name": "depositTo (native)", "sender": self.alice,
+                 "signature": "depositTo(address)", "arguments": [self.bob], "value": RAIL_DEPOSIT},
+                {"name": "withdraw (native)", "sender": self.alice,
+                 "signature": "withdraw(address,uint256)",
+                 "arguments": [NATIVE, str(RAIL_WITHDRAW)]},
+                {"name": "executeScript/rateOps", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.rate_ops_script()]},
+                {"name": "executeScript/lockupOps", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.lockup_ops_script()]},
+                {"name": "executeScript/settleReset", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.settle_reset_script()]},
             ],
         }
 

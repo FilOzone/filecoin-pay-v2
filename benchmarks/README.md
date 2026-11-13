@@ -47,6 +47,10 @@ Isolation stays the default because it enforces that independence rather than re
 [`.filecoin-gas-snapshot`](../.filecoin-gas-snapshot) is the checked-in record, one sorted `sequence:operation (gas: n)` line per measurement in the shape of forge's `.gas-snapshot`.
 Regenerate it whenever a change could move Filecoin gas, so the pull request carries the delta as a line diff.
 
+Every state-changing external method has a row, and every opcode in [`src/lib/Script.sol`](../src/lib/Script.sol) appears in at least one `executeScript` row, so a new method or op needs a step here before its gas is tracked.
+The script steps group several ops each (`moveOps`, `rateOps`, `lockupOps`, `settleReset`) instead of one op per row, because the runner replays every predecessor of each measured step, so a sequence of n steps costs about n²/2 transactions.
+A step has to write something no earlier step already wrote: a message that rewrites a value already in place commits no blocks and prices nothing, which is worth about 14M here.
+
 Build the node once, in the `fvm-anvil` checkout:
 
 ```bash
