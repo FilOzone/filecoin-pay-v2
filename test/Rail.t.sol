@@ -181,6 +181,35 @@ contract RailTest is Test {
         payments.executeScript(script);
     }
 
+    function testSetRailScript() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 3;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        // the operator picks up a rail it created in an earlier transaction
+        bytes memory script = ScriptBuilder.newScript().setRail(alice, bob, nonce).lock(100).setRate(5).build();
+        payments.executeScript(script);
+
+        StreamState memory state = payments.getRail(rail);
+        assertEq(state.available, 100, "the rail ops after it address the rail it named");
+        assertEq(state.incomingRate, 5);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
+
+        // deriving from the caller keeps SETRAIL off rails it does not operate
+        bytes memory foreign = ScriptBuilder.newScript().setRail(alice, bob, nonce + 1).lock(100).build();
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.executeScript(foreign);
+    }
+
     function testTransferAllWithDrain() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");

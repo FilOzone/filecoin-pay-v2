@@ -8,7 +8,7 @@ import {stdError} from "forge-std/StdError.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {DEPOSIT, POP, PUSH, SETTOKEN, SUDO, ScriptBuilder} from "../src/lib/Script.sol";
-import {ALL, NONE, Permissions, TRANSFER} from "../src/lib/Permissions.sol";
+import {ALL, NONE, Permissions, TRANSFER, WITHDRAW} from "../src/lib/Permissions.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
@@ -110,6 +110,37 @@ contract AuthTest is Test {
         vm.expectEmit(address(pay));
         emit IERC6909.Transfer(ALICE, ALICE, BOB, tokenId, 0);
         pay.executeScript(script);
+    }
+
+    function testAuthorizeNarrowsToTheScope() public {
+        // ALICE hands BOB everything the script she signs is itself trusted with
+        bytes memory grant = ScriptBuilder.newScript().authorize(BOB, ALL).build();
+        vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit IERC6909.OperatorSet(ALICE, BOB, true);
+        pay.executeScript(ALL & ~WITHDRAW, grant);
+        assertTrue(pay.isOperator(ALICE, BOB));
+
+        vm.prank(ALICE);
+        pay.deposit(address(token), 500);
+
+        bytes memory spend = ScriptBuilder.newScript().setToken(address(token)).sudo(ALICE).transfer(CAROL, 200).build();
+        vm.prank(BOB);
+        pay.executeScript(spend);
+        assertEq(pay.balanceOf(CAROL, tokenId), 200);
+
+        // the grant never carried WITHDRAW, so nothing BOB runs can reach it
+        bytes memory withdraw = ScriptBuilder.newScript().setToken(address(token)).sudo(ALICE).withdraw(100).build();
+        vm.prank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, ALICE, BOB));
+        pay.executeScript(withdraw);
+
+        // the operator flag follows the TRANSFER bit the scope let through
+        vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit IERC6909.OperatorSet(ALICE, CAROL, false);
+        pay.executeScript(ALL & ~TRANSFER, ScriptBuilder.newScript().authorize(CAROL, ALL).build());
+        assertFalse(pay.isOperator(ALICE, CAROL));
     }
 
     function testTransferFrom() public {

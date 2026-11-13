@@ -4,6 +4,7 @@ pragma solidity ^0.8.37;
 import {Test} from "forge-std/Test.sol";
 
 import {
+    AUTHORIZE,
     CREATERAIL,
     DECREASERATE,
     DEPOSIT,
@@ -16,6 +17,7 @@ import {
     PUSH,
     RESET,
     SETAVAILABLE,
+    SETRAIL,
     SETRATE,
     SETTLERAIL,
     SETTOKEN,
@@ -28,6 +30,7 @@ import {
     WITHDRAW,
     WITHDRAWTO
 } from "../src/lib/Script.sol";
+import {Permissions} from "../src/lib/Permissions.sol";
 
 contract ScriptBuilderTest is Test {
     using ScriptBuilder for bytes;
@@ -46,6 +49,8 @@ contract ScriptBuilderTest is Test {
             .setToken(MAX_ADDRESS)
             .push()
             .sudo(ALICE)
+            .authorize(ALICE, Permissions.wrap(type(uint256).max))
+            .setRail(MAX_ADDRESS, BOB, MAX_NONCE)
             .createRail(BOB, MAX_ADDRESS, MAX_NONCE)
             .deposit(MAX_AMOUNT)
             .depositTo(MAX_AMOUNT, BOB)
@@ -75,6 +80,14 @@ contract ScriptBuilderTest is Test {
                 uint8(PUSH),
                 uint8(SUDO),
                 ALICE,
+                uint8(AUTHORIZE),
+                ALICE,
+                // only the low byte of the permissions travels
+                uint8(type(uint8).max),
+                uint8(SETRAIL),
+                MAX_ADDRESS,
+                BOB,
+                MAX_NONCE,
                 uint8(CREATERAIL),
                 BOB,
                 MAX_ADDRESS,

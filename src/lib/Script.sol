@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
+import {Permissions} from "./Permissions.sol";
+
 // ops that share a prologue are numbered adjacently, so that _dispatch reads the operands and
 // runs the checks they have in common once: contract code costs Filecoin gas on every call
 
@@ -9,25 +11,28 @@ uint256 constant PUSH = 1;
 uint256 constant RESET = 2;
 uint256 constant SUDO = 3;
 uint256 constant SETTOKEN = 4;
-uint256 constant CREATERAIL = 5;
-uint256 constant SETTLERAIL = 6;
+uint256 constant AUTHORIZE = 5;
+// SETRAIL names the same rail CREATERAIL does, without creating it
+uint256 constant SETRAIL = 6;
+uint256 constant CREATERAIL = 7;
+uint256 constant SETTLERAIL = 8;
 // _dispatch tells these four apart by order and parity: the bare pair leads the TO pair,
 // and an even op deposits where an odd op withdraws
-uint256 constant WITHDRAW = 7;
-uint256 constant DEPOSIT = 8;
-uint256 constant WITHDRAWTO = 9;
-uint256 constant DEPOSITTO = 10;
-uint256 constant TRANSFER = 11;
-uint256 constant TRANSFERFROM = 12;
-uint256 constant TRANSFERALL = 13;
-uint256 constant INCREASERATE = 14;
-uint256 constant DECREASERATE = 15;
-uint256 constant SETRATE = 16;
-uint256 constant DISBURSEALL = 17;
-uint256 constant DISBURSE = 18;
-uint256 constant LOCK = 19;
-uint256 constant UNLOCK = 20;
-uint256 constant SETAVAILABLE = 21;
+uint256 constant WITHDRAW = 9;
+uint256 constant DEPOSIT = 10;
+uint256 constant WITHDRAWTO = 11;
+uint256 constant DEPOSITTO = 12;
+uint256 constant TRANSFER = 13;
+uint256 constant TRANSFERFROM = 14;
+uint256 constant TRANSFERALL = 15;
+uint256 constant INCREASERATE = 16;
+uint256 constant DECREASERATE = 17;
+uint256 constant SETRATE = 18;
+uint256 constant DISBURSEALL = 19;
+uint256 constant DISBURSE = 20;
+uint256 constant LOCK = 21;
+uint256 constant UNLOCK = 22;
+uint256 constant SETAVAILABLE = 23;
 
 /// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
 /// @dev Important: do not allocate memory when building scripts
@@ -93,6 +98,34 @@ library ScriptBuilder {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETTOKEN), shl(88, token)))
             mstore(0x40, add(21, buf))
+        }
+        return scriptBuilder;
+    }
+
+    /// @dev only the low byte of the permissions travels, which the dispatcher narrows to its scope
+    function authorize(bytes memory scriptBuilder, address operator, Permissions permissions)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(or(shl(248, AUTHORIZE), shl(88, operator)), shl(80, and(0xff, permissions))))
+            mstore(0x40, add(22, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function setRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, SETRAIL), shl(88, from)))
+            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
+            mstore(0x40, add(45, buf))
         }
         return scriptBuilder;
     }

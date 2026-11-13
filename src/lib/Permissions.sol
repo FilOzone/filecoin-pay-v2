@@ -11,11 +11,14 @@ uint256 constant WITHDRAW_U256 = 1 << 1;
 uint256 constant TRANSFER_U256 = 1 << 2;
 uint256 constant CREATE_RAIL_U256 = 1 << 3;
 uint256 constant APPROVE_U256 = 1 << 4;
+uint256 constant AUTHORIZE_U256 = 1 << 5;
 
 Permissions constant DEPOSIT = Permissions.wrap(DEPOSIT_U256);
 Permissions constant WITHDRAW = Permissions.wrap(WITHDRAW_U256);
 Permissions constant TRANSFER = Permissions.wrap(TRANSFER_U256);
 Permissions constant CREATE_RAIL = Permissions.wrap(CREATE_RAIL_U256);
+/// @dev delegating permissions onward, never more than the delegator holds
+Permissions constant AUTHORIZE = Permissions.wrap(AUTHORIZE_U256);
 // TODO: consider TERMINATE_RAIL permission
 
 // composite permissions

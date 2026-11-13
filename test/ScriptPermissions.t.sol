@@ -4,7 +4,16 @@ pragma solidity ^0.8.37;
 import {Test} from "forge-std/Test.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
-import {ALL, DEPOSIT, DEPOSIT_TO, Permissions, TRANSFER, WITHDRAW, WITHDRAW_TO} from "../src/lib/Permissions.sol";
+import {
+    ALL,
+    AUTHORIZE,
+    DEPOSIT,
+    DEPOSIT_TO,
+    Permissions,
+    TRANSFER,
+    WITHDRAW,
+    WITHDRAW_TO
+} from "../src/lib/Permissions.sol";
 import {ScriptBuilder} from "../src/lib/Script.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -52,6 +61,14 @@ contract ScriptPermissionsTest is Test {
     function _allows(Permissions scope, bytes memory script) internal {
         vm.prank(ALICE);
         pay.executeScript(scope, script);
+    }
+
+    function testAuthorize() public {
+        bytes memory script = ScriptBuilder.newScript().authorize(CAROL, ALL).build();
+        _rejects(ALL & ~AUTHORIZE, script);
+        _allows(AUTHORIZE, script);
+        // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on
+        assertFalse(pay.isOperator(ALICE, CAROL));
     }
 
     function testDeposit() public {

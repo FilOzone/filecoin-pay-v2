@@ -13,6 +13,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {Extsload} from "./Extsload.sol";
 import {
     ALL,
+    AUTHORIZE_U256,
     CREATE_RAIL,
     DEPOSIT_TO_U256,
     DEPOSIT_U256,
@@ -28,11 +29,11 @@ import {ScriptReading} from "./lib/ScriptReading.sol";
 /// @dev an allowance of INFINITE is never decremented
 uint256 constant INFINITE = type(uint256).max;
 
-/// @dev one nibble per op, indexed by the op: the Permissions the dispatcher requires of it
-uint256 constant PERMISSION_BY_OP = (WITHDRAW_U256 << (4 * Ops.WITHDRAW)) | (DEPOSIT_U256 << (4 * Ops.DEPOSIT))
-    | (WITHDRAW_TO_U256 << (4 * Ops.WITHDRAWTO)) | (DEPOSIT_TO_U256 << (4 * Ops.DEPOSITTO))
-    | (TRANSFER_U256 << (4 * Ops.TRANSFER)) | (TRANSFER_U256 << (4 * Ops.TRANSFERFROM))
-    | (TRANSFER_U256 << (4 * Ops.TRANSFERALL));
+/// @dev one byte per op, indexed by the op: the Permissions the dispatcher requires of it
+uint256 constant PERMISSION_BY_OP = (AUTHORIZE_U256 << (8 * Ops.AUTHORIZE)) | (WITHDRAW_U256 << (8 * Ops.WITHDRAW))
+    | (DEPOSIT_U256 << (8 * Ops.DEPOSIT)) | (WITHDRAW_TO_U256 << (8 * Ops.WITHDRAWTO))
+    | (DEPOSIT_TO_U256 << (8 * Ops.DEPOSITTO)) | (TRANSFER_U256 << (8 * Ops.TRANSFER))
+    | (TRANSFER_U256 << (8 * Ops.TRANSFERFROM)) | (TRANSFER_U256 << (8 * Ops.TRANSFERALL));
 
 contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for bytes;
@@ -200,9 +201,13 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     function authorize(address operator, Permissions permissions) external {
-        users[msg.sender].authorizations[operator].permissions = permissions;
+        _authorize(msg.sender, operator, permissions);
+    }
+
+    function _authorize(address owner, address operator, Permissions permissions) internal {
+        users[owner].authorizations[operator].permissions = permissions;
         // emiting the event unconditionally avoids reading the prior state
-        emit OperatorSet(msg.sender, operator, permissions.isOperator());
+        emit OperatorSet(owner, operator, permissions.isOperator());
     }
 
     error RailNotCreated();
@@ -554,6 +559,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
             // switch(method), numbered so that adjacent ops share the reads and checks they have in common
 
+            // an op with no entry in the table takes no permission, so its mask passes
+            Permissions scope = Permissions.wrap((PERMISSION_BY_OP >> (method << 3)) & 0xff);
+            require(auth.permissions & scope == scope, Unauthorized(auth.authenticated, msg.sender));
+
             if (method < Ops.WITHDRAW) {
                 if (method < Ops.SUDO) {
                     if (method == Ops.POP) {
@@ -568,9 +577,14 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     // every op from here to Ops.SETTLERAIL leads with an address
                     address who;
                     (who, curr) = curr.nextAddress();
-                    if (method < Ops.CREATERAIL) {
+                    if (method < Ops.SETRAIL) {
                         if (method == Ops.SETTOKEN) {
                             auth.token = uint256(uint160(who));
+                        } else if (method == Ops.AUTHORIZE) {
+                            uint256 granted;
+                            (granted, curr) = curr.nextByte();
+                            // a script grants only what it was itself trusted with
+                            _authorize(auth.authenticated, who, Permissions.wrap(granted) & auth.permissions);
                         } else {
                             // Ops.SUDO
                             Permissions permissions =
@@ -580,28 +594,27 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                             auth.permissions = permissions;
                         }
                     } else {
-                        // Ops.CREATERAIL, Ops.SETTLERAIL: `who` is the payer of both
+                        // Ops.SETRAIL, Ops.CREATERAIL, Ops.SETTLERAIL: `who` is the payer of each
                         address recipient;
                         uint32 nonce;
                         (recipient, curr) = curr.nextAddress();
                         (nonce, curr) = curr.nextU32();
-                        if (method == Ops.CREATERAIL) {
-                            // the rail ops that follow address what this created
-                            auth.from = who;
-                            auth.recipient = recipient;
-                            auth.nonce = nonce;
-                            _createRail(auth.authenticated, who, recipient, nonce, auth.token, auth.permissions);
-                        } else {
-                            // Ops.SETTLERAIL
+                        if (method == Ops.SETTLERAIL) {
                             address operator;
                             (operator, curr) = curr.nextAddress();
                             _settleRail(operator, who, recipient, nonce, auth.token);
+                        } else {
+                            // the rail ops that follow address this one
+                            auth.from = who;
+                            auth.recipient = recipient;
+                            auth.nonce = nonce;
+                            if (method == Ops.CREATERAIL) {
+                                _createRail(auth.authenticated, who, recipient, nonce, auth.token, auth.permissions);
+                            }
                         }
                     }
                 }
             } else if (method < Ops.INCREASERATE) {
-                Permissions scope = Permissions.wrap((PERMISSION_BY_OP >> (method << 2)) & 0xf);
-                require(auth.permissions & scope == scope, Unauthorized(auth.authenticated, msg.sender));
                 if (method < Ops.TRANSFER) {
                     // Ops.WITHDRAW, Ops.DEPOSIT, Ops.WITHDRAWTO, Ops.DEPOSITTO
                     uint128 amount;

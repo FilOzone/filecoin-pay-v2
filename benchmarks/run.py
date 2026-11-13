@@ -27,7 +27,8 @@ MNEMONIC = "test test test test test test test test test test test junk"
 NATIVE_TOKEN = 0
 
 # src/lib/Script.sol opcodes
-POP, PUSH, SUDO, SETTOKEN, CREATERAIL, DEPOSIT = 0, 1, 3, 4, 5, 8
+POP, PUSH, SUDO, SETTOKEN, AUTHORIZE = 0, 1, 3, 4, 5
+SETRAIL, CREATERAIL, DEPOSIT, LOCK = 6, 7, 10, 21
 # src/lib/Permissions.sol
 ALL = (1 << 256) - 1
 CREATE_RAIL = 1 << 3
@@ -351,6 +352,29 @@ class Runner:
             )
         ).hex()
 
+    def authorize_script(self) -> str:
+        """The script op, granting every permission bit the scope it runs under allows."""
+        return "0x" + b"".join(
+            (
+                bytes([AUTHORIZE]),
+                bytes.fromhex(self.carol[2:]),
+                bytes([0xFF]),
+            )
+        ).hex()
+
+    def set_rail_script(self) -> str:
+        """SETRAIL reaches the rail the preceding script created, which LOCK then draws on."""
+        return "0x" + b"".join(
+            (
+                bytes([SETRAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+                bytes([LOCK]),
+                RAIL_LOCK.to_bytes(16, "big"),
+            )
+        ).hex()
+
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
         rail = [self.alice, self.bob, "0", str(NATIVE_TOKEN)]
@@ -372,6 +396,8 @@ class Runner:
                  "arguments": [self.alice, self.carol, self.token_id, "10"]},
                 {"name": "setOperator", "sender": self.alice,
                  "signature": "setOperator(address,bool)", "arguments": [self.carol, "true"]},
+                {"name": "executeScript/authorize", "sender": self.alice,
+                 "signature": "executeScript(bytes)", "arguments": [self.authorize_script()]},
             ],
             "rails": [
                 {"name": "authorize(operator, CREATE_RAIL)", "sender": self.alice,
@@ -401,6 +427,8 @@ class Runner:
                  "arguments": [self.operator] + rail},
                 {"name": "executeScript/createRail", "sender": self.operator,
                  "signature": "executeScript(bytes)", "arguments": [self.create_rail_script()]},
+                {"name": "executeScript/setRail", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.set_rail_script()]},
             ],
         }
 
