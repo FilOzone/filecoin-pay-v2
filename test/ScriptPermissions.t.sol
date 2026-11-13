@@ -7,6 +7,7 @@ import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {
     ALL,
     AUTHORIZE,
+    CREATE_RAIL,
     DEPOSIT,
     DEPOSIT_TO,
     Permissions,
@@ -69,6 +70,28 @@ contract ScriptPermissionsTest is Test {
         _allows(AUTHORIZE, script);
         // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on
         assertFalse(pay.isOperator(ALICE, CAROL));
+    }
+
+    function testTerminateRail() public {
+        vm.prank(BOB);
+        pay.authorize(ALICE, CREATE_RAIL);
+        vm.prank(ALICE);
+        pay.createRail(BOB, CAROL, 0, tokenId);
+
+        bytes memory script = _script().setRail(BOB, CAROL, 0).terminateRail().build();
+        _rejects(ALL & ~CREATE_RAIL, script);
+        _allows(CREATE_RAIL, script);
+    }
+
+    function testTerminateRailBy() public {
+        vm.prank(ALICE);
+        pay.authorize(BOB, CREATE_RAIL);
+        vm.prank(BOB);
+        pay.createRail(ALICE, CAROL, 0, tokenId);
+
+        bytes memory script = _script().setRail(ALICE, CAROL, 0).terminateRailBy(BOB).build();
+        _rejects(ALL & ~CREATE_RAIL, script);
+        _allows(CREATE_RAIL, script);
     }
 
     function testDeposit() public {

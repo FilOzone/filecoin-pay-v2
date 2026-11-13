@@ -33,6 +33,9 @@ uint256 constant DISBURSE = 20;
 uint256 constant LOCK = 21;
 uint256 constant UNLOCK = 22;
 uint256 constant SETAVAILABLE = 23;
+// the operator terminates the rail its own identity derives; the payer names the operator instead
+uint256 constant TERMINATERAIL = 24;
+uint256 constant TERMINATERAILBY = 25;
 
 /// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
 /// @dev Important: do not allocate memory when building scripts
@@ -314,6 +317,25 @@ library ScriptBuilder {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETAVAILABLE), shl(120, amount)))
             mstore(0x40, add(17, buf))
+        }
+        return scriptBuilder;
+    }
+
+    function terminateRail(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore8(buf, TERMINATERAIL)
+            mstore(0x40, add(1, buf))
+        }
+        return scriptBuilder;
+    }
+
+    /// @dev for the payer, who is the authenticated party rather than an operand
+    function terminateRailBy(bytes memory scriptBuilder, address operator) internal pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            let buf := mload(0x40)
+            mstore(buf, or(shl(248, TERMINATERAILBY), shl(88, operator)))
+            mstore(0x40, add(21, buf))
         }
         return scriptBuilder;
     }

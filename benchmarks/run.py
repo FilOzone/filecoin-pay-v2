@@ -33,6 +33,7 @@ WITHDRAW, DEPOSIT, WITHDRAWTO, DEPOSITTO = 9, 10, 11, 12
 TRANSFER, TRANSFERFROM, TRANSFERALL = 13, 14, 15
 INCREASERATE, DECREASERATE, SETRATE = 16, 17, 18
 DISBURSEALL, DISBURSE, LOCK, UNLOCK, SETAVAILABLE = 19, 20, 21, 22, 23
+TERMINATERAIL, TERMINATERAILBY = 24, 25
 NATIVE = "0x" + "00" * 20
 # src/lib/Permissions.sol, suffixed so no permission reads as one of the opcodes above
 ALL_PERMISSION = (1 << 256) - 1
@@ -61,6 +62,8 @@ RAIL_RATE_DELTA = 25
 RAIL_RATE_FINAL = 10
 # the rails sequence ends on a terminated nonce 0, so the script creates a rail that never existed
 SCRIPT_RAIL_NONCE = 1
+# the operator-side terminate ends a rail of its own, so it opens one no other step holds
+TERMINATE_RAIL_NONCE = 2
 
 
 def command(args: list[str], *, cwd: Path | None = None) -> str:
@@ -468,6 +471,27 @@ class Runner:
             )
         ).hex()
 
+    def terminate_ops_script(self) -> str:
+        """Both terminate ops. The operator ends a rail it opens here, then authenticates as the
+        payer to end the one the earlier script created, which is the only side that names it."""
+        return "0x" + b"".join(
+            (
+                bytes([CREATERAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                TERMINATE_RAIL_NONCE.to_bytes(4, "big"),
+                bytes([TERMINATERAIL]),
+                bytes([SUDO]),
+                bytes.fromhex(self.alice[2:]),
+                bytes([SETRAIL]),
+                bytes.fromhex(self.alice[2:]),
+                bytes.fromhex(self.bob[2:]),
+                SCRIPT_RAIL_NONCE.to_bytes(4, "big"),
+                bytes([TERMINATERAILBY]),
+                bytes.fromhex(self.operator[2:]),
+            )
+        ).hex()
+
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
         rail = [self.alice, self.bob, "0", str(NATIVE_TOKEN)]
@@ -554,6 +578,9 @@ class Runner:
                  "signature": "executeScript(bytes)", "arguments": [self.lockup_ops_script()]},
                 {"name": "executeScript/settleReset", "sender": self.operator,
                  "signature": "executeScript(bytes)", "arguments": [self.settle_reset_script()]},
+                # last: it ends the rail the steps above operate on
+                {"name": "executeScript/terminateOps", "sender": self.operator,
+                 "signature": "executeScript(bytes)", "arguments": [self.terminate_ops_script()]},
             ],
         }
 

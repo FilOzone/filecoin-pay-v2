@@ -21,6 +21,8 @@ import {
     SETRATE,
     SETTLERAIL,
     SETTOKEN,
+    TERMINATERAIL,
+    TERMINATERAILBY,
     SUDO,
     ScriptBuilder,
     TRANSFER,
@@ -68,6 +70,8 @@ contract ScriptBuilderTest is Test {
             .settleRail(ALICE, BOB, MAX_NONCE, MAX_ADDRESS)
             .setRate(MAX_RATE)
             .setAvailable(MAX_AMOUNT)
+            .terminateRail()
+            .terminateRailBy(MAX_ADDRESS)
             .reset()
             .pop()
             .build();
@@ -131,6 +135,9 @@ contract ScriptBuilderTest is Test {
                 MAX_RATE,
                 uint8(SETAVAILABLE),
                 MAX_AMOUNT,
+                uint8(TERMINATERAIL),
+                uint8(TERMINATERAILBY),
+                MAX_ADDRESS,
                 uint8(RESET),
                 uint8(POP)
             )

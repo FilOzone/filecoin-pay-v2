@@ -406,8 +406,134 @@ contract RailTest is Test {
         vm.roll(fiftyAt + 5);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
+        // settling covers two of the three blocks, and the lockup covers the third exactly
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 10);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 5);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the lockup went to the debt, not back");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100, "every deposited attoFIL reached bob");
+    }
+
+    function testTerminateSplitsLockupBetweenDebtAndRefund() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 300);
+        vm.prank(alice);
+        payments.deposit{value: 300}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
+
+        // 150 funds three blocks, so the fourth is one block of debt against a lockup of 150
+        vm.roll(start + 4);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+
+        payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 200, "three blocks settled and one came out of the lockup");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100, "the lockup the debt did not need");
+    }
+
+    function testTerminateForgivesDebtBeyondLockup() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 300);
+        vm.prank(alice);
+        payments.deposit{value: 300}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 20);
+
+        // 280 funds five whole blocks, leaving three owed against a lockup of 20
+        vm.roll(start + 8);
+        payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 270, "250 settled plus the whole lockup");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 30, "what no whole block could settle stays with the payer");
+    }
+
+    function testTerminateRailScript() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint32 nonce = 5;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 100);
+
+        vm.roll(start + 2);
+        bytes memory script = ScriptBuilder.newScript().setRail(alice, bob, nonce).terminateRail().build();
+
+        vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, address(this), address(this)));
+        payments.executeScript(ALL & ~CREATE_RAIL, script);
+
+        payments.executeScript(script);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the operator ended the rail its own identity derives");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100, "two blocks at 50");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400, "the lockup owed nothing");
+    }
+
+    function testTerminateRailByScript() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+        address carol = makeAddr("carol");
+
+        uint32 nonce = 9;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 500);
+        vm.prank(alice);
+        payments.deposit{value: 500}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+
+        bytes memory script =
+            ScriptBuilder.newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
+
+        // the op derives the rail from the payer the script authenticated as, which carol is not
+        vm.prank(carol);
+        vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
+        payments.executeScript(script);
+
+        vm.roll(start + 2);
+        vm.prank(alice);
+        payments.executeScript(script);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the payer ended it without the operator");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
     }
 }

@@ -16,10 +16,10 @@ uint256 constant AUTHORIZE_U256 = 1 << 5;
 Permissions constant DEPOSIT = Permissions.wrap(DEPOSIT_U256);
 Permissions constant WITHDRAW = Permissions.wrap(WITHDRAW_U256);
 Permissions constant TRANSFER = Permissions.wrap(TRANSFER_U256);
+/// @dev the payer's grant to open a rail; terminating one only takes it in a script's scope
 Permissions constant CREATE_RAIL = Permissions.wrap(CREATE_RAIL_U256);
 /// @dev delegating permissions onward, never more than the delegator holds
 Permissions constant AUTHORIZE = Permissions.wrap(AUTHORIZE_U256);
-// TODO: consider TERMINATE_RAIL permission
 
 // composite permissions
 uint256 constant NONE_U256 = 0;

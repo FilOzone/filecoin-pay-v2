@@ -15,6 +15,7 @@ import {
     ALL,
     AUTHORIZE_U256,
     CREATE_RAIL,
+    CREATE_RAIL_U256,
     DEPOSIT_TO_U256,
     DEPOSIT_U256,
     NONE,
@@ -33,7 +34,8 @@ uint256 constant INFINITE = type(uint256).max;
 uint256 constant PERMISSION_BY_OP = (AUTHORIZE_U256 << (8 * Ops.AUTHORIZE)) | (WITHDRAW_U256 << (8 * Ops.WITHDRAW))
     | (DEPOSIT_U256 << (8 * Ops.DEPOSIT)) | (WITHDRAW_TO_U256 << (8 * Ops.WITHDRAWTO))
     | (DEPOSIT_TO_U256 << (8 * Ops.DEPOSITTO)) | (TRANSFER_U256 << (8 * Ops.TRANSFER))
-    | (TRANSFER_U256 << (8 * Ops.TRANSFERFROM)) | (TRANSFER_U256 << (8 * Ops.TRANSFERALL));
+    | (TRANSFER_U256 << (8 * Ops.TRANSFERFROM)) | (TRANSFER_U256 << (8 * Ops.TRANSFERALL))
+    | (CREATE_RAIL_U256 << (8 * Ops.TERMINATERAIL)) | (CREATE_RAIL_U256 << (8 * Ops.TERMINATERAILBY));
 
 contract FilecoinPayV2 is Extsload, IERC6909 {
     using ScriptReading for bytes;
@@ -309,6 +311,12 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     function terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) public {
         require(msg.sender == operator || msg.sender == from, Unauthorized(from, msg.sender));
+        _terminateRail(operator, from, recipient, nonce, token);
+    }
+
+    /// @dev either side of the rail may terminate it, so a caller has to be one of them: the
+    /// dispatcher proves it by deriving the rail from the identity its script authenticated as
+    function _terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) internal {
         Stream storage stream = _existingRail(operator, from, recipient, token, nonce);
 
         uint256 settledUpTo = _settleRail(operator, from, recipient, nonce, token);
@@ -316,15 +324,21 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         StreamState memory state = stream.state;
         Account storage account = users[from].accounts[token];
         Checkpoint memory scratch = account.latest;
-        // FIXME: lockup should go toward any debt before being refunded to the user
+        // settling stopped where the balance ran out, so the blocks after it are this rail's debt,
+        // and the lockup answers for it before any of it goes back to the payer
+        uint256 owed = (block.number - settledUpTo) * uint256(state.incomingRate);
+        uint128 paid = owed < state.available ? uint128(owed) : state.available;
         unchecked {
-            scratch.balance += state.available - uint128(scratch.drainRate)
+            scratch.balance += state.available - paid - uint128(scratch.drainRate)
             * uint128(settledUpTo - scratch.modifiedEpoch);
             scratch.drainRate -= state.incomingRate;
             scratch.modifiedEpoch = uint40(settledUpTo);
         }
         account.latest = scratch;
         delete stream.state;
+        if (paid > 0) {
+            _credit(recipient, from, token, paid);
+        }
     }
 
     error Behind();
@@ -667,6 +681,16 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                         rate = previousRate - rate;
                     }
                     _setRate(stream, users[auth.from].accounts[auth.token], previousRate, rate);
+                } else if (method >= Ops.TERMINATERAIL) {
+                    // Ops.TERMINATERAIL, Ops.TERMINATERAILBY
+                    address operator = auth.authenticated;
+                    address from = auth.from;
+                    if (method == Ops.TERMINATERAILBY) {
+                        // the payer is who the script authenticated as, and names the operator
+                        from = operator;
+                        (operator, curr) = curr.nextAddress();
+                    }
+                    _terminateRail(operator, from, auth.recipient, auth.nonce, auth.token);
                 } else {
                     // Ops.DISBURSEALL, Ops.DISBURSE, Ops.LOCK, Ops.UNLOCK, Ops.SETAVAILABLE
                     Stream storage stream = _existingRail(auth);
