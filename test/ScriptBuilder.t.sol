@@ -24,19 +24,17 @@ import {
     TERMINATERAIL,
     TERMINATERAILBY,
     SUDO,
-    ScriptBuilder,
     TRANSFER,
     TRANSFERALL,
     TRANSFERFROM,
     UNLOCK,
     WITHDRAW,
-    WITHDRAWTO
+    WITHDRAWTO,
+    newScript
 } from "../src/lib/Script.sol";
 import {Permissions} from "../src/lib/Permissions.sol";
 
 contract ScriptBuilderTest is Test {
-    using ScriptBuilder for bytes;
-
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     // saturated operands would collide with the adjacent field if a shift were off by a byte,
@@ -47,7 +45,7 @@ contract ScriptBuilderTest is Test {
     uint88 private constant MAX_RATE = type(uint88).max;
 
     function testBuild() public pure {
-        bytes memory script = ScriptBuilder.newScript()
+        bytes memory script = newScript()
             .setToken(MAX_ADDRESS)
             .push()
             .sudo(ALICE)
@@ -145,6 +143,6 @@ contract ScriptBuilderTest is Test {
     }
 
     function testNewScriptIsEmpty() public pure {
-        assertEq(ScriptBuilder.newScript().build(), "");
+        assertEq(newScript().build(), "");
     }
 }

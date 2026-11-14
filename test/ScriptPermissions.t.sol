@@ -15,14 +15,12 @@ import {
     WITHDRAW,
     WITHDRAW_TO
 } from "../src/lib/Permissions.sol";
-import {ScriptBuilder} from "../src/lib/Script.sol";
+import {ScriptBuilder, newScript} from "../src/lib/Script.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @dev the dispatcher reads what an op requires out of one packed table, so every entry needs a case
 contract ScriptPermissionsTest is Test {
-    using ScriptBuilder for bytes;
-
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     address private constant CAROL = 0xCA401ca401Ca401CA401CA401cA401CA401ca401;
@@ -49,8 +47,8 @@ contract ScriptPermissionsTest is Test {
         vm.stopPrank();
     }
 
-    function _script() internal view returns (bytes memory) {
-        return ScriptBuilder.newScript().setToken(address(token));
+    function _script() internal view returns (ScriptBuilder) {
+        return newScript().setToken(address(token));
     }
 
     function _rejects(Permissions scope, bytes memory script) internal {
@@ -65,7 +63,7 @@ contract ScriptPermissionsTest is Test {
     }
 
     function testAuthorize() public {
-        bytes memory script = ScriptBuilder.newScript().authorize(CAROL, ALL).build();
+        bytes memory script = newScript().authorize(CAROL, ALL).build();
         _rejects(ALL & ~AUTHORIZE, script);
         _allows(AUTHORIZE, script);
         // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on

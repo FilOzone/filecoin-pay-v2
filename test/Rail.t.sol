@@ -7,13 +7,12 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {ALL, CREATE_RAIL} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
-import {ScriptBuilder} from "../src/lib/Script.sol";
+import {newScript} from "../src/lib/Script.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
 contract RailTest is Test {
     using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
-    using ScriptBuilder for bytes;
 
     FilecoinPayV2 internal payments;
 
@@ -155,7 +154,7 @@ contract RailTest is Test {
         vm.prank(alice);
         payments.deposit{value: 500}();
 
-        bytes memory script = ScriptBuilder.newScript().createRail(alice, bob, nonce).increaseRate(5).lock(100).build();
+        bytes memory script = newScript().createRail(alice, bob, nonce).increaseRate(5).lock(100).build();
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
         payments.executeScript(script);
@@ -196,7 +195,7 @@ contract RailTest is Test {
         payments.deposit{value: 500}();
 
         // the operator picks up a rail it created in an earlier transaction
-        bytes memory script = ScriptBuilder.newScript().setRail(alice, bob, nonce).lock(100).setRate(5).build();
+        bytes memory script = newScript().setRail(alice, bob, nonce).lock(100).setRate(5).build();
         payments.executeScript(script);
 
         StreamState memory state = payments.getRail(rail);
@@ -205,7 +204,7 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
 
         // deriving from the caller keeps SETRAIL off rails it does not operate
-        bytes memory foreign = ScriptBuilder.newScript().setRail(alice, bob, nonce + 1).lock(100).build();
+        bytes memory foreign = newScript().setRail(alice, bob, nonce + 1).lock(100).build();
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.executeScript(foreign);
     }
@@ -231,7 +230,7 @@ contract RailTest is Test {
         vm.roll(fiftyAt + 2);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
 
-        bytes memory script = ScriptBuilder.newScript().transferAll(carol).build();
+        bytes memory script = newScript().transferAll(carol).build();
         vm.prank(alice);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(alice, alice, carol, NATIVE_TOKEN, 400);
@@ -282,7 +281,7 @@ contract RailTest is Test {
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         // the dispatcher starts on auth.token 0, the native token
-        bytes memory script = ScriptBuilder.newScript().settleRail(alice, bob, nonce, address(this)).build();
+        bytes memory script = newScript().settleRail(alice, bob, nonce, address(this)).build();
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.executeScript(script);
     }
@@ -490,7 +489,7 @@ contract RailTest is Test {
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 100);
 
         vm.roll(start + 2);
-        bytes memory script = ScriptBuilder.newScript().setRail(alice, bob, nonce).terminateRail().build();
+        bytes memory script = newScript().setRail(alice, bob, nonce).terminateRail().build();
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, address(this), address(this)));
         payments.executeScript(ALL & ~CREATE_RAIL, script);
@@ -520,8 +519,7 @@ contract RailTest is Test {
         uint256 start = vm.getBlockNumber();
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
 
-        bytes memory script =
-            ScriptBuilder.newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
+        bytes memory script = newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
 
         // the op derives the rail from the payer the script authenticated as, which carol is not
         vm.prank(carol);

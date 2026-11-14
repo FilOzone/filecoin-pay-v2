@@ -6,13 +6,11 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {ALL, WITHDRAW, WITHDRAW_TO} from "../src/lib/Permissions.sol";
-import {ScriptBuilder} from "../src/lib/Script.sol";
+import {newScript} from "../src/lib/Script.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 contract WithdrawTest is MockFVMTest {
-    using ScriptBuilder for bytes;
-
     uint256 private constant NATIVE_TOKEN = 0;
 
     FilecoinPayV2 private pay;
@@ -90,7 +88,7 @@ contract WithdrawTest is MockFVMTest {
     }
 
     function testWithdrawNative() public {
-        bytes memory script = ScriptBuilder.newScript().withdraw(200).build();
+        bytes memory script = newScript().withdraw(200).build();
         vm.prank(alice);
         vm.expectEmit(address(pay));
         emit IERC6909.Transfer(alice, alice, address(0), NATIVE_TOKEN, 200);
@@ -102,14 +100,14 @@ contract WithdrawTest is MockFVMTest {
         assertEq(alice.balance, 200);
         assertEq(address(pay).balance, 300);
 
-        script = ScriptBuilder.newScript().withdraw(301).build();
+        script = newScript().withdraw(301).build();
         vm.prank(alice);
         vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
         pay.executeScript(script);
     }
 
     function testWithdrawToken() public {
-        bytes memory script = ScriptBuilder.newScript().setToken(address(token)).withdrawTo(600, bob).build();
+        bytes memory script = newScript().setToken(address(token)).withdrawTo(600, bob).build();
         vm.prank(alice);
         vm.expectEmit(address(pay));
         emit IERC6909.Transfer(alice, alice, address(0), tokenId, 600);
@@ -121,7 +119,7 @@ contract WithdrawTest is MockFVMTest {
     }
 
     function testWithdrawToSudo() public {
-        bytes memory script = ScriptBuilder.newScript().sudo(alice).withdrawTo(100, bob).build();
+        bytes memory script = newScript().sudo(alice).withdrawTo(100, bob).build();
 
         vm.prank(alice);
         pay.authorize(bob, WITHDRAW);
@@ -140,7 +138,7 @@ contract WithdrawTest is MockFVMTest {
     }
 
     function testWithdrawOutsideScope() public {
-        bytes memory script = ScriptBuilder.newScript().withdraw(100).build();
+        bytes memory script = newScript().withdraw(100).build();
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, alice));
         pay.executeScript(ALL & ~WITHDRAW, script);

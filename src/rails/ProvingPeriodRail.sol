@@ -4,12 +4,10 @@ pragma solidity ^0.8.37;
 import {IValidator} from "../interfaces/IValidator.sol";
 import {IRailV2} from "../interfaces/IRail.sol";
 import {RailId} from "../lib/RailId.sol";
-import {ScriptBuilder} from "../lib/Script.sol";
+import {ScriptBuilder, newScript} from "../lib/Script.sol";
 
 // A rail with a provingPeriod IValidator and a lockupPeriod
 contract ProvingPeriodRail is IRailV2 {
-    using ScriptBuilder for bytes;
-
     address private immutable PAY;
     IValidator private immutable VALIDATOR;
     uint256 private immutable PROVING_PERIOD;
@@ -68,13 +66,13 @@ contract ProvingPeriodRail is IRailV2 {
             refund += addsBalance - result.modifiedAmount;
         }
         // the settling rail is the script's authorization, so neither op names it
-        script = ScriptBuilder.newScript();
+        ScriptBuilder builder = newScript();
         if (refund != 0) {
-            script = script.unlock(uint128(refund));
+            builder = builder.unlock(uint128(refund));
         }
         if (payout != 0) {
-            script = script.disburse(uint128(payout));
+            builder = builder.disburse(uint128(payout));
         }
-        script = script.build();
+        script = builder.build();
     }
 }

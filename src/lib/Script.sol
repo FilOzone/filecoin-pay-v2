@@ -40,17 +40,22 @@ uint256 constant TERMINATERAILBY = 25;
 /// @dev Concatenate scripts without leaking memory, unlike concat(bytes, bytes)
 /// @dev Important: do not allocate memory when building scripts
 
-library ScriptBuilder {
-    function newScript() internal pure returns (bytes memory scriptBuilder) {
-        assembly ("memory-safe") {
-            scriptBuilder := mload(0x40)
-            mstore(0x40, add(0x20, scriptBuilder))
-        }
-    }
+/// @dev the bytes head of a script that is still growing: only build() can set its length
+type ScriptBuilder is uint256;
 
-    function build(bytes memory scriptBuilder) internal pure returns (bytes memory script) {
-        script = scriptBuilder;
+using ScriptBuilderLibrary for ScriptBuilder global;
+
+function newScript() pure returns (ScriptBuilder scriptBuilder) {
+    assembly ("memory-safe") {
+        scriptBuilder := mload(0x40)
+        mstore(0x40, add(0x20, scriptBuilder))
+    }
+}
+
+library ScriptBuilderLibrary {
+    function build(ScriptBuilder scriptBuilder) internal pure returns (bytes memory script) {
         assembly ("memory-safe") {
+            script := scriptBuilder
             mstore(script, sub(mload(0x40), add(0x20, script)))
         }
     }
@@ -60,7 +65,7 @@ library ScriptBuilder {
     // operands are stored left-aligned at ascending offsets, so each store overwrites the zero
     // padding of the previous one, and the next op overwrites the padding of the last
 
-    function pop(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+    function pop(ScriptBuilder scriptBuilder) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore8(buf, POP)
@@ -69,7 +74,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function push(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+    function push(ScriptBuilder scriptBuilder) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore8(buf, PUSH)
@@ -78,7 +83,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function reset(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+    function reset(ScriptBuilder scriptBuilder) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore8(buf, RESET)
@@ -87,7 +92,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function sudo(bytes memory scriptBuilder, address who) internal pure returns (bytes memory) {
+    function sudo(ScriptBuilder scriptBuilder, address who) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SUDO), shl(88, who)))
@@ -96,7 +101,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function setToken(bytes memory scriptBuilder, address token) internal pure returns (bytes memory) {
+    function setToken(ScriptBuilder scriptBuilder, address token) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETTOKEN), shl(88, token)))
@@ -106,10 +111,10 @@ library ScriptBuilder {
     }
 
     /// @dev only the low byte of the permissions travels, which the dispatcher narrows to its scope
-    function authorize(bytes memory scriptBuilder, address operator, Permissions permissions)
+    function authorize(ScriptBuilder scriptBuilder, address operator, Permissions permissions)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -119,10 +124,10 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function setRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce)
+    function setRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -133,10 +138,10 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function createRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce)
+    function createRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -148,10 +153,10 @@ library ScriptBuilder {
     }
 
     /// @dev the operator trails the rail CREATERAIL also names, which is what lets them share a read
-    function settleRail(bytes memory scriptBuilder, address from, address recipient, uint32 nonce, address operator)
+    function settleRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce, address operator)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -163,7 +168,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function withdraw(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function withdraw(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, WITHDRAW), shl(120, amount)))
@@ -172,7 +177,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function deposit(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function deposit(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, DEPOSIT), shl(120, amount)))
@@ -181,10 +186,10 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function withdrawTo(bytes memory scriptBuilder, uint128 amount, address recipient)
+    function withdrawTo(ScriptBuilder scriptBuilder, uint128 amount, address recipient)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -195,10 +200,10 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function depositTo(bytes memory scriptBuilder, uint128 amount, address recipient)
+    function depositTo(ScriptBuilder scriptBuilder, uint128 amount, address recipient)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -210,10 +215,10 @@ library ScriptBuilder {
     }
 
     /// @dev the recipient leads, so TRANSFERALL shares the read
-    function transfer(bytes memory scriptBuilder, address recipient, uint128 amount)
+    function transfer(ScriptBuilder scriptBuilder, address recipient, uint128 amount)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -225,10 +230,10 @@ library ScriptBuilder {
     }
 
     /// @dev the owner trails what TRANSFER also names, which is what lets them share a read
-    function transferFrom(bytes memory scriptBuilder, address recipient, uint128 amount, address owner)
+    function transferFrom(ScriptBuilder scriptBuilder, address recipient, uint128 amount, address owner)
         internal
         pure
-        returns (bytes memory)
+        returns (ScriptBuilder)
     {
         assembly ("memory-safe") {
             let buf := mload(0x40)
@@ -240,7 +245,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function transferAll(bytes memory scriptBuilder, address recipient) internal pure returns (bytes memory) {
+    function transferAll(ScriptBuilder scriptBuilder, address recipient) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, TRANSFERALL), shl(88, recipient)))
@@ -249,7 +254,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function increaseRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+    function increaseRate(ScriptBuilder scriptBuilder, uint88 rate) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, INCREASERATE), shl(160, rate)))
@@ -258,7 +263,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function decreaseRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+    function decreaseRate(ScriptBuilder scriptBuilder, uint88 rate) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, DECREASERATE), shl(160, rate)))
@@ -267,7 +272,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function setRate(bytes memory scriptBuilder, uint88 rate) internal pure returns (bytes memory) {
+    function setRate(ScriptBuilder scriptBuilder, uint88 rate) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETRATE), shl(160, rate)))
@@ -276,7 +281,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function disburseAll(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+    function disburseAll(ScriptBuilder scriptBuilder) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore8(buf, DISBURSEALL)
@@ -285,7 +290,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function disburse(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function disburse(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, DISBURSE), shl(120, amount)))
@@ -294,7 +299,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function lock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function lock(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, LOCK), shl(120, amount)))
@@ -303,7 +308,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function unlock(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function unlock(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, UNLOCK), shl(120, amount)))
@@ -312,7 +317,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function setAvailable(bytes memory scriptBuilder, uint128 amount) internal pure returns (bytes memory) {
+    function setAvailable(ScriptBuilder scriptBuilder, uint128 amount) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETAVAILABLE), shl(120, amount)))
@@ -321,7 +326,7 @@ library ScriptBuilder {
         return scriptBuilder;
     }
 
-    function terminateRail(bytes memory scriptBuilder) internal pure returns (bytes memory) {
+    function terminateRail(ScriptBuilder scriptBuilder) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore8(buf, TERMINATERAIL)
@@ -331,7 +336,7 @@ library ScriptBuilder {
     }
 
     /// @dev for the payer, who is the authenticated party rather than an operand
-    function terminateRailBy(bytes memory scriptBuilder, address operator) internal pure returns (bytes memory) {
+    function terminateRailBy(ScriptBuilder scriptBuilder, address operator) internal pure returns (ScriptBuilder) {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, TERMINATERAILBY), shl(88, operator)))
