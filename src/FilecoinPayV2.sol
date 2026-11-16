@@ -226,7 +226,18 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         internal
         returns (uint256 settledUpTo)
     {
-        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
+        return _settleStream(operator.deriveRail(from, recipient, token, nonce), operator, from, recipient, nonce, token);
+    }
+
+    /// @dev for callers that already hold the rail, so the derivation is not paid twice
+    function _settleStream(
+        Stream storage stream,
+        address operator,
+        address from,
+        address recipient,
+        uint64 nonce,
+        uint256 token
+    ) internal returns (uint256 settledUpTo) {
         StreamState memory loadedStream = stream.state;
         require(loadedStream.exists(), RailNotCreated());
 
@@ -317,9 +328,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     /// @dev either side of the rail may terminate it, so a caller has to be one of them: the
     /// dispatcher proves it by deriving the rail from the identity its script authenticated as
     function _terminateRail(address operator, address from, address recipient, uint64 nonce, uint256 token) internal {
-        Stream storage stream = _existingRail(operator, from, recipient, token, nonce);
+        Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
 
-        uint256 settledUpTo = _settleRail(operator, from, recipient, nonce, token);
+        uint256 settledUpTo = _settleStream(stream, operator, from, recipient, nonce, token);
 
         StreamState memory state = stream.state;
         Account storage account = users[from].accounts[token];
@@ -356,10 +367,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         internal
         returns (Stream storage stream)
     {
-        // TODO(perf): this duplicates the deriveRail hashing
         stream = operator.deriveRail(from, recipient, token, nonce);
         // _settleRail requires the rail exists
-        require(_settleRail(operator, from, recipient, nonce, token) == block.number, Behind());
+        require(_settleStream(stream, operator, from, recipient, nonce, token) == block.number, Behind());
     }
 
     /// @param previousRate must be read after settling, which a callback script can change
