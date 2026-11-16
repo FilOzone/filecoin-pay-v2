@@ -9,7 +9,7 @@ contract ScriptReadingTest is Test {
     using ScriptReading for bytes;
 
     bytes constant DATA =
-        hex"0001ff02030405060708090a0b0c0d0e0f10444455556666777777777777777777777777777777788888888888888888888888888888889a9a9a9a9a9a9a9aeeeeeeeeeeeeeeeeeeeeee";
+        hex"0001ff02030405060708090a0b0c0d0e0f1044445555669a9a9a9a9a9a9a9a6677777777777777777777777777777778888888888888888888888888888888eeeeeeeeeeeeeeeeeeeeee";
 
     function _testIter(uint256 curr, uint256 end) internal pure {
         assertEq(end - curr, DATA.length);
@@ -21,16 +21,15 @@ contract ScriptReadingTest is Test {
         (u256, curr) = curr.nextByte();
         assertEq(u256, 255);
         address who;
-        (who, curr) = curr.nextAddress();
+        uint64 u64;
+        (who, u64, curr) = curr.nextAddressU64();
         assertEq(who, 0x02030405060708090A0B0C0d0E0F104444555566);
+        assertEq(u64, 0x9a9a9a9a9a9a9a9a);
         uint128 u128;
         (u128, curr) = curr.nextU128();
         assertEq(u128, 0x66777777777777777777777777777777);
         (u128, curr) = curr.nextU128();
         assertEq(u128, 0x78888888888888888888888888888888);
-        uint64 u64;
-        (u64, curr) = curr.nextU64();
-        assertEq(u64, 0x9a9a9a9a9a9a9a9a);
         uint88 u88;
         (u88, curr) = curr.nextU88();
         assertEq(u88, 0xeeeeeeeeeeeeeeeeeeeeee);

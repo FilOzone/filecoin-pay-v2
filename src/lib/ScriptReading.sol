@@ -33,10 +33,13 @@ library ScriptReading {
         }
     }
 
-    function nextU64(uint256 curr) internal pure returns (uint64 next, uint256 newCurr) {
+    /// @dev the pair shares one word: address(20) nonce(8)
+    function nextAddressU64(uint256 curr) internal pure returns (address next, uint64 value, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := shr(192, mload(curr))
-            newCurr := add(curr, 8)
+            let word := mload(curr)
+            next := shr(96, word)
+            value := shr(192, shl(160, word))
+            newCurr := add(curr, 28)
         }
     }
 

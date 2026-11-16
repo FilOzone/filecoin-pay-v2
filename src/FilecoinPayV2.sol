@@ -611,8 +611,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                         // Ops.SETRAIL, Ops.CREATERAIL, Ops.SETTLERAIL: `who` is the payer of each
                         address recipient;
                         uint64 nonce;
-                        (recipient, curr) = curr.nextAddress();
-                        (nonce, curr) = curr.nextU64();
+                        (recipient, nonce, curr) = curr.nextAddressU64();
                         if (method == Ops.SETTLERAIL) {
                             address operator;
                             (operator, curr) = curr.nextAddress();
