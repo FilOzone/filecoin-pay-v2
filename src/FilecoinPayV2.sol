@@ -645,22 +645,22 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                 } else {
                     // Ops.TRANSFER, Ops.TRANSFERFROM, Ops.TRANSFERALL
                     address recipient;
-                    (recipient, curr) = curr.nextAddress();
                     if (method == Ops.TRANSFERFROM) {
-                        uint128 amount;
+                        uint128 operand;
                         address owner;
-                        (amount, curr) = curr.nextU128();
+                        (recipient, operand, curr) = curr.nextAddressU128();
                         (owner, curr) = curr.nextAddress();
-                        _transferFrom(auth.authenticated, owner, recipient, auth.token, amount);
+                        _transferFrom(auth.authenticated, owner, recipient, auth.token, operand);
                     } else {
                         Account storage debit = users[auth.authenticated].accounts[auth.token];
                         uint256 amount;
                         if (method == Ops.TRANSFER) {
                             uint128 operand;
-                            (operand, curr) = curr.nextU128();
+                            (recipient, operand, curr) = curr.nextAddressU128();
                             amount = operand;
                         } else {
                             // Ops.TRANSFERALL: what the rails have accrued stays behind
+                            (recipient, curr) = curr.nextAddress();
                             amount = current(debit.latest);
                         }
                         _move(debit, recipient, auth.authenticated, auth.token, amount);

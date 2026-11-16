@@ -43,6 +43,15 @@ library ScriptReading {
         }
     }
 
+    /// @dev the pair straddles the word boundary: address(20) amount(16)
+    function nextAddressU128(uint256 curr) internal pure returns (address next, uint128 value, uint256 newCurr) {
+        assembly ("memory-safe") {
+            next := shr(96, mload(curr))
+            value := shr(128, mload(add(20, curr)))
+            newCurr := add(curr, 36)
+        }
+    }
+
     function nextU88(uint256 curr) internal pure returns (uint88 next, uint256 newCurr) {
         assembly ("memory-safe") {
             next := shr(168, mload(curr))
