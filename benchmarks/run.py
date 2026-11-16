@@ -60,7 +60,9 @@ RAIL_AVAILABLE = 200
 RAIL_UNLOCK = 75
 RAIL_RATE_DELTA = 25
 RAIL_RATE_FINAL = 10
-# the rails sequence ends on a terminated nonce 0, so the script creates a rail that never existed
+# the rail the external-entry-point steps operate on
+RAIL_NONCE = 0
+# the rails sequence ends on a terminated RAIL_NONCE, so the script creates a rail that never existed
 SCRIPT_RAIL_NONCE = 1
 # the operator-side terminate ends a rail of its own, so it opens one no other step holds
 TERMINATE_RAIL_NONCE = 2
@@ -494,7 +496,7 @@ class Runner:
 
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
-        rail = [self.alice, self.bob, "0", str(NATIVE_TOKEN)]
+        rail = [self.alice, self.bob, str(RAIL_NONCE), str(NATIVE_TOKEN)]
         return {
             "erc6909": [
                 {"name": "authorize(bob, ALL)", "sender": self.alice,
