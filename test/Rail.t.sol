@@ -26,7 +26,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
         payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
@@ -36,13 +36,13 @@ contract RailTest is Test {
         emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
 
-        // operator(20) from(20) token(20) recipient(20) nonce(4)
+        // operator(20) from(20) token(20) recipient(20) nonce(8)
         RailId expectedRailId = RailId.wrap(
             uint256(keccak256(abi.encodePacked(address(this), alice, address(uint160(NATIVE_TOKEN)), bob, nonce)))
         );
         assertEq(
             RailId.unwrap(expectedRailId),
-            0x19dcc429a1c4e6bbb13cdf766b15979eb4541ab36709de42a8976b2db548e013,
+            0xe62b29dc118fb8c05baca2cc83efa4cf9fb131608232ff10cb6fa00a89a80bcb,
             "rail id preimage layout changed"
         );
         vm.expectEmit(address(payments));
@@ -67,7 +67,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
@@ -148,7 +148,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 7;
+        uint64 nonce = 7;
 
         vm.deal(alice, 500);
         vm.prank(alice);
@@ -184,7 +184,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 3;
+        uint64 nonce = 3;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -214,7 +214,7 @@ contract RailTest is Test {
         address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -250,7 +250,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -275,7 +275,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
@@ -290,7 +290,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 50);
@@ -344,7 +344,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.deal(alice, 500);
         vm.prank(alice);
@@ -419,7 +419,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -448,7 +448,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 0;
+        uint64 nonce = 0;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -474,7 +474,7 @@ contract RailTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = 5;
+        uint64 nonce = 5;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -506,7 +506,7 @@ contract RailTest is Test {
         address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
-        uint32 nonce = 9;
+        uint64 nonce = 9;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);

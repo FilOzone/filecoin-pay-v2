@@ -41,7 +41,7 @@ contract ScriptBuilderTest is Test {
     // so each op pairs one with distinct operands, which a swapped pair would not survive
     address private constant MAX_ADDRESS = address(type(uint160).max);
     uint128 private constant MAX_AMOUNT = type(uint128).max;
-    uint32 private constant MAX_NONCE = type(uint32).max;
+    uint64 private constant MAX_NONCE = type(uint64).max;
     uint88 private constant MAX_RATE = type(uint88).max;
 
     function testBuild() public pure {

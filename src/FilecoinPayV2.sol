@@ -214,7 +214,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     error RailNotCreated();
 
-    function settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
+    function settleRail(address operator, address from, address recipient, uint64 nonce, uint256 token)
         external
         validToken(token)
         returns (uint256 settledUpTo)
@@ -222,7 +222,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         return _settleRail(operator, from, recipient, nonce, token);
     }
 
-    function _settleRail(address operator, address from, address recipient, uint32 nonce, uint256 token)
+    function _settleRail(address operator, address from, address recipient, uint64 nonce, uint256 token)
         internal
         returns (uint256 settledUpTo)
     {
@@ -268,7 +268,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         }
     }
 
-    function lock(address from, address recipient, uint32 nonce, uint256 token, uint256 amount)
+    function lock(address from, address recipient, uint64 nonce, uint256 token, uint256 amount)
         external
         validToken(token)
     {
@@ -296,27 +296,27 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         }
     }
 
-    function unlock(address from, address recipient, uint32 nonce, uint256 token, uint256 amount)
+    function unlock(address from, address recipient, uint64 nonce, uint256 token, uint256 amount)
         external
         validToken(token)
     {
         _lockup(from, recipient, nonce, token, amount, false);
     }
 
-    function _lockup(address from, address recipient, uint32 nonce, uint256 token, uint256 amount, bool add) internal {
+    function _lockup(address from, address recipient, uint64 nonce, uint256 token, uint256 amount, bool add) internal {
         _lockup(
             _existingRail(msg.sender, from, recipient, token, nonce), users[from].accounts[token], uint128(amount), add
         );
     }
 
-    function terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) public {
+    function terminateRail(address operator, address from, address recipient, uint64 nonce, uint256 token) public {
         require(msg.sender == operator || msg.sender == from, Unauthorized(from, msg.sender));
         _terminateRail(operator, from, recipient, nonce, token);
     }
 
     /// @dev either side of the rail may terminate it, so a caller has to be one of them: the
     /// dispatcher proves it by deriving the rail from the identity its script authenticated as
-    function _terminateRail(address operator, address from, address recipient, uint32 nonce, uint256 token) internal {
+    function _terminateRail(address operator, address from, address recipient, uint64 nonce, uint256 token) internal {
         Stream storage stream = _existingRail(operator, from, recipient, token, nonce);
 
         uint256 settledUpTo = _settleRail(operator, from, recipient, nonce, token);
@@ -343,7 +343,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     error Behind();
 
-    function modifyRate(address from, address recipient, uint32 nonce, uint256 token, uint88 rate)
+    function modifyRate(address from, address recipient, uint64 nonce, uint256 token, uint88 rate)
         external
         validToken(token)
     {
@@ -352,7 +352,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     /// @dev settling first is what lets the new rate apply from this block on
-    function _settleForRate(address operator, address from, address recipient, uint32 nonce, uint256 token)
+    function _settleForRate(address operator, address from, address recipient, uint64 nonce, uint256 token)
         internal
         returns (Stream storage stream)
     {
@@ -382,7 +382,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         account.latest = previous;
     }
 
-    function disburse(address from, address recipient, uint32 nonce, uint256 token, uint128 amount)
+    function disburse(address from, address recipient, uint64 nonce, uint256 token, uint128 amount)
         external
         validToken(token)
     {
@@ -412,12 +412,12 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         address indexed operator,
         uint256 token,
         RailId railId,
-        uint32 nonce
+        uint64 nonce
     );
 
     /// @param nonce high bit is FLAG_CALLBACK, settling through IRailV2 callbacks rather than to
     /// recipient; the low 31 bits distinguish rails sharing the other arguments
-    function createRail(address from, address recipient, uint32 nonce, uint256 token)
+    function createRail(address from, address recipient, uint64 nonce, uint256 token)
         external
         validToken(token)
         returns (RailId railId)
@@ -430,7 +430,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         address operator,
         address from,
         address recipient,
-        uint32 nonce,
+        uint64 nonce,
         uint256 token,
         Permissions scope
     ) internal returns (RailId railId) {
@@ -450,7 +450,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         Permissions permissions;
         address from;
         address recipient;
-        uint32 nonce;
+        uint64 nonce;
         uint256 token;
     }
     error Unauthorized(address user, address operator);
@@ -459,7 +459,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         return _existingRail(auth.authenticated, auth.from, auth.recipient, auth.token, auth.nonce);
     }
 
-    function _existingRail(address operator, address from, address recipient, uint256 token, uint32 nonce)
+    function _existingRail(address operator, address from, address recipient, uint256 token, uint64 nonce)
         internal
         view
         returns (Stream storage stream)
@@ -610,9 +610,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     } else {
                         // Ops.SETRAIL, Ops.CREATERAIL, Ops.SETTLERAIL: `who` is the payer of each
                         address recipient;
-                        uint32 nonce;
+                        uint64 nonce;
                         (recipient, curr) = curr.nextAddress();
-                        (nonce, curr) = curr.nextU32();
+                        (nonce, curr) = curr.nextU64();
                         if (method == Ops.SETTLERAIL) {
                             address operator;
                             (operator, curr) = curr.nextAddress();

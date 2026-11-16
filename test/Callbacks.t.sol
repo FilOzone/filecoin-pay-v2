@@ -63,7 +63,7 @@ contract CallbacksTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = FLAG_CALLBACK;
+        uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -103,7 +103,7 @@ contract CallbacksTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = FLAG_CALLBACK;
+        uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
@@ -145,7 +145,7 @@ contract CallbacksTest is Test {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
 
-        uint32 nonce = FLAG_CALLBACK;
+        uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);

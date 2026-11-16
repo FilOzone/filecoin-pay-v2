@@ -124,7 +124,7 @@ library ScriptBuilderLibrary {
         return scriptBuilder;
     }
 
-    function setRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce)
+    function setRail(ScriptBuilder scriptBuilder, address from, address recipient, uint64 nonce)
         internal
         pure
         returns (ScriptBuilder)
@@ -132,13 +132,13 @@ library ScriptBuilderLibrary {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETRAIL), shl(88, from)))
-            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
-            mstore(0x40, add(45, buf))
+            mstore(add(21, buf), or(shl(96, recipient), shl(32, nonce)))
+            mstore(0x40, add(49, buf))
         }
         return scriptBuilder;
     }
 
-    function createRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce)
+    function createRail(ScriptBuilder scriptBuilder, address from, address recipient, uint64 nonce)
         internal
         pure
         returns (ScriptBuilder)
@@ -146,14 +146,14 @@ library ScriptBuilderLibrary {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, CREATERAIL), shl(88, from)))
-            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
-            mstore(0x40, add(45, buf))
+            mstore(add(21, buf), or(shl(96, recipient), shl(32, nonce)))
+            mstore(0x40, add(49, buf))
         }
         return scriptBuilder;
     }
 
     /// @dev the operator trails the rail CREATERAIL also names, which is what lets them share a read
-    function settleRail(ScriptBuilder scriptBuilder, address from, address recipient, uint32 nonce, address operator)
+    function settleRail(ScriptBuilder scriptBuilder, address from, address recipient, uint64 nonce, address operator)
         internal
         pure
         returns (ScriptBuilder)
@@ -161,9 +161,9 @@ library ScriptBuilderLibrary {
         assembly ("memory-safe") {
             let buf := mload(0x40)
             mstore(buf, or(shl(248, SETTLERAIL), shl(88, from)))
-            mstore(add(21, buf), or(shl(96, recipient), shl(64, nonce)))
-            mstore(add(45, buf), shl(96, operator))
-            mstore(0x40, add(65, buf))
+            mstore(add(21, buf), or(shl(96, recipient), shl(32, nonce)))
+            mstore(add(49, buf), shl(96, operator))
+            mstore(0x40, add(69, buf))
         }
         return scriptBuilder;
     }

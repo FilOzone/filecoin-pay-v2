@@ -33,10 +33,10 @@ library ScriptReading {
         }
     }
 
-    function nextU32(uint256 curr) internal pure returns (uint32 next, uint256 newCurr) {
+    function nextU64(uint256 curr) internal pure returns (uint64 next, uint256 newCurr) {
         assembly ("memory-safe") {
-            next := shr(224, mload(curr))
-            newCurr := add(curr, 4)
+            next := shr(192, mload(curr))
+            newCurr := add(curr, 8)
         }
     }
 
