@@ -70,6 +70,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     error InvalidToken();
 
+    /// @custom:solar-inline always
     function _validateToken(uint256 token) internal pure {
         require(token >> 160 == 0, InvalidToken());
     }
@@ -226,7 +227,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         internal
         returns (uint256 settledUpTo)
     {
-        return _settleStream(operator.deriveRail(from, recipient, token, nonce), operator, from, recipient, nonce, token);
+        return _settleStream(
+            operator.deriveRail(from, recipient, token, nonce), operator, from, recipient, nonce, token
+        );
     }
 
     /// @dev for callers that already hold the rail, so the derivation is not paid twice
