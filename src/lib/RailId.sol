@@ -55,9 +55,9 @@ library RailIdLibrary {
         state.available = uint128(streamInfo >> 128);
     }
 
-    function exists(Stream storage stream) internal view returns (bool exists) {
+    function exists(Stream storage stream) internal view returns (bool result) {
         assembly ("memory-safe") {
-            exists := iszero(iszero(sload(stream.slot)))
+            result := iszero(iszero(sload(stream.slot)))
         }
     }
 
