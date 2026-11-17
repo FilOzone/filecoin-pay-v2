@@ -341,7 +341,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         // settling stopped where the balance ran out, so the blocks after it are this rail's debt,
         // and the lockup answers for it before any of it goes back to the payer
         uint256 owed = (block.number - settledUpTo) * uint256(state.incomingRate);
-        uint128 paid = owed < state.available ? uint128(owed) : state.available;
+        uint128 paid = uint128(owed);
+        if (owed >= state.available) {
+            paid = state.available;
+        }
         unchecked {
             scratch.balance += state.available - paid - uint128(scratch.drainRate)
             * uint128(settledUpTo - scratch.modifiedEpoch);
