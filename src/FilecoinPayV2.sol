@@ -276,8 +276,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                 );
             } else {
                 stream.state = loadedStream;
-                users[recipient].accounts[token].latest.balance += uint128(amount);
-                emit Transfer(operator, from, recipient, token, amount);
+                if (amount > 0) {
+                    _credit(recipient, operator, from, token, amount);
+                }
             }
         }
     }
@@ -421,10 +422,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         uint128 amount
     ) internal {
         stream.state.available -= amount;
-        unchecked {
-            users[recipient].accounts[token].latest.balance += amount;
-        }
-        emit Transfer(operator, from, recipient, token, uint256(amount));
+        _credit(recipient, operator, from, token, uint256(amount));
     }
 
     error Exists();
@@ -507,11 +505,15 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     // recipient leads: callers hold it nearest the stack top, so the shared body needs the fewest swaps
-    function _credit(address recipient, address owner, uint256 token, uint256 amount) internal {
+    function _credit(address recipient, address caller, address owner, uint256 token, uint256 amount) internal {
         unchecked {
             users[recipient].accounts[token].latest.balance += uint128(amount);
         }
-        emit Transfer(msg.sender, owner, recipient, token, amount);
+        emit Transfer(caller, owner, recipient, token, amount);
+    }
+
+    function _credit(address recipient, address owner, uint256 token, uint256 amount) internal {
+        _credit(recipient, msg.sender, owner, token, amount);
     }
 
     /// @dev the checkpoint keeps its epoch, so the rails it owes still drain from where they left off
