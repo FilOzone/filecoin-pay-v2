@@ -39,8 +39,15 @@ contract CallbacksTest is Test {
         uint256 prevBalance,
         uint256 addsBalance
     ) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailSettled(railId, settledUpTo, addsBalance);
         vm.expectEmit(address(this));
         emit SettleRailParams(railId, prevSettledEpoch, settledUpTo, prevBalance, addsBalance);
+    }
+
+    function expectRateSet(RailId railId, uint88 rate) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailRateSet(railId, rate);
     }
 
     function expectNoSettleRail() internal {
@@ -66,6 +73,8 @@ contract CallbacksTest is Test {
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.Authorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
 
         uint256 createdAt = vm.getBlockNumber();
@@ -79,6 +88,7 @@ contract CallbacksTest is Test {
         vm.roll(createdAt + 1);
         mockScript = newScript().increaseRate(10).build();
         expectSettleRail(railId, createdAt, createdAt + 1, 0, 0);
+        expectRateSet(railId, 10);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.getRail(railId).incomingRate, 10);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 1000);
@@ -86,6 +96,7 @@ contract CallbacksTest is Test {
         vm.roll(createdAt + 3);
         mockScript = newScript().decreaseRate(4).build();
         expectSettleRail(railId, createdAt + 1, createdAt + 3, 0, 20);
+        expectRateSet(railId, 6);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.getRail(railId).incomingRate, 6);
         assertEq(payments.getRail(railId).available, 20);
@@ -106,6 +117,8 @@ contract CallbacksTest is Test {
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.Authorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
 
         uint256 createdAt = vm.getBlockNumber();
@@ -118,6 +131,7 @@ contract CallbacksTest is Test {
         vm.roll(createdAt + 1);
         mockScript = newScript().setRate(10).setAvailable(100).build();
         expectSettleRail(railId, createdAt, createdAt + 1, 0, 0);
+        expectRateSet(railId, 10);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.getRail(railId).incomingRate, 10);
         assertEq(payments.getRail(railId).available, 100);
@@ -127,6 +141,7 @@ contract CallbacksTest is Test {
         vm.roll(createdAt + 3);
         mockScript = newScript().setRate(4).setAvailable(50).build();
         expectSettleRail(railId, createdAt + 1, createdAt + 3, 100, 20);
+        expectRateSet(railId, 4);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.getRail(railId).incomingRate, 4, "the rate is set, not adjusted");
         assertEq(payments.getRail(railId).available, 50, "the lockup is set, not adjusted");
@@ -148,6 +163,8 @@ contract CallbacksTest is Test {
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.Authorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
 
         uint256 createdAt = vm.getBlockNumber();
@@ -157,6 +174,7 @@ contract CallbacksTest is Test {
         expectSettleRail(railId, createdAt, createdAt + 1, 0, 0);
         payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
+        expectRateSet(railId, 5);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 5);
 
         vm.roll(createdAt + 2);

@@ -15,6 +15,7 @@ import {
     WITHDRAW,
     WITHDRAW_TO
 } from "../src/lib/Permissions.sol";
+import {RailId} from "../src/lib/RailId.sol";
 import {ScriptBuilder, newScript} from "../src/lib/Script.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -65,6 +66,8 @@ contract ScriptPermissionsTest is Test {
     function testAuthorize() public {
         bytes memory script = newScript().authorize(CAROL, ALL).build();
         _rejects(ALL & ~AUTHORIZE, script);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(ALICE, CAROL, AUTHORIZE);
         _allows(AUTHORIZE, script);
         // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on
         assertFalse(pay.isOperator(ALICE, CAROL));
@@ -72,23 +75,31 @@ contract ScriptPermissionsTest is Test {
 
     function testTerminateRail() public {
         vm.prank(BOB);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(BOB, ALICE, CREATE_RAIL);
         pay.authorize(ALICE, CREATE_RAIL);
         vm.prank(ALICE);
-        pay.createRail(BOB, CAROL, 0, tokenId);
+        RailId rail = pay.createRail(BOB, CAROL, 0, tokenId);
 
         bytes memory script = _script().setRail(BOB, CAROL, 0).terminateRail().build();
         _rejects(ALL & ~CREATE_RAIL, script);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.RailTerminated(rail, ALICE);
         _allows(CREATE_RAIL, script);
     }
 
     function testTerminateRailBy() public {
         vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(ALICE, BOB, CREATE_RAIL);
         pay.authorize(BOB, CREATE_RAIL);
         vm.prank(BOB);
-        pay.createRail(ALICE, CAROL, 0, tokenId);
+        RailId rail = pay.createRail(ALICE, CAROL, 0, tokenId);
 
         bytes memory script = _script().setRail(ALICE, CAROL, 0).terminateRailBy(BOB).build();
         _rejects(ALL & ~CREATE_RAIL, script);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.RailTerminated(rail, ALICE);
         _allows(CREATE_RAIL, script);
     }
 

@@ -5,7 +5,7 @@ import {stdError} from "forge-std/StdError.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
-import {ALL, CREATE_RAIL} from "../src/lib/Permissions.sol";
+import {ALL, CREATE_RAIL, Permissions} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
 import {newScript} from "../src/lib/Script.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
@@ -22,6 +22,26 @@ contract RailTest is Test {
         payments = new FilecoinPayV2();
     }
 
+    function expectAuthorized(address user, address operator, Permissions permissions) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.Authorized(user, operator, permissions);
+    }
+
+    function expectSettled(RailId rail, uint256 settledUpTo, uint256 amount) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailSettled(rail, settledUpTo, amount);
+    }
+
+    function expectRateSet(RailId rail, uint88 rate) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailRateSet(rail, rate);
+    }
+
+    function expectTerminated(RailId rail, address terminator) internal {
+        vm.expectEmit(address(payments));
+        emit FilecoinPayV2.RailTerminated(rail, terminator);
+    }
+
     function testCreate() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
@@ -32,6 +52,7 @@ contract RailTest is Test {
         payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
@@ -73,6 +94,7 @@ contract RailTest is Test {
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
@@ -87,6 +109,8 @@ contract RailTest is Test {
 
         vm.roll(createdAt + 1);
         uint40 fiftyAt = uint40(vm.getBlockNumber());
+        expectSettled(rail, fiftyAt, 0);
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
 
         state = payments.getRail(rail);
@@ -116,6 +140,7 @@ contract RailTest is Test {
         assertEq(state.settledUpTo, fiftyAt);
         assertEq(state.available, 0);
 
+        expectSettled(rail, fiftyAt + 1, 50);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
         settledUpTo = payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
@@ -132,8 +157,10 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
 
+        expectSettled(rail, fiftyAt + 10, 450);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 450);
+        expectRateSet(rail, 0);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 0);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 500);
@@ -160,6 +187,7 @@ contract RailTest is Test {
         payments.executeScript(script);
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
@@ -168,6 +196,7 @@ contract RailTest is Test {
         RailId expectedRailId = RailIdLibrary.getRailId(address(this).deriveRail(alice, bob, NATIVE_TOKEN, nonce));
         vm.expectEmit(address(payments));
         emit FilecoinPayV2.RailCreated(alice, bob, address(this), NATIVE_TOKEN, expectedRailId, nonce);
+        expectRateSet(expectedRailId, 5);
         payments.executeScript(script);
 
         StreamState memory state = payments.getRail(expectedRailId);
@@ -187,6 +216,7 @@ contract RailTest is Test {
         uint64 nonce = 3;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -196,6 +226,7 @@ contract RailTest is Test {
 
         // the operator picks up a rail it created in an earlier transaction
         bytes memory script = newScript().setRail(alice, bob, nonce).lock(100).setRate(5).build();
+        expectRateSet(rail, 5);
         payments.executeScript(script);
 
         StreamState memory state = payments.getRail(rail);
@@ -217,14 +248,16 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
-        payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
         vm.deal(alice, 500);
         vm.prank(alice);
         payments.deposit{value: 500}();
 
         uint256 fiftyAt = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
 
         vm.roll(fiftyAt + 2);
@@ -239,6 +272,7 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
         assertEq(payments.balanceOf(carol, NATIVE_TOKEN), 400, "the sweep leaves what the rail accrued");
 
+        expectSettled(rail, fiftyAt + 2, 100);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 100);
         assertEq(payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN), fiftyAt + 2);
@@ -253,6 +287,7 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -261,7 +296,9 @@ contract RailTest is Test {
         payments.deposit{value: 500}();
 
         uint256 fiftyAt = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        expectRateSet(rail, 70);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 70);
 
         assertEq(payments.getRail(rail).incomingRate, 70);
@@ -299,6 +336,7 @@ contract RailTest is Test {
         payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 50);
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
@@ -354,16 +392,19 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100);
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(alice, address(this), false);
         payments.authorize(address(this), CREATE_RAIL);
 
         RailId expectedRailId = RailIdLibrary.getRailId(address(this).deriveRail(alice, bob, NATIVE_TOKEN, nonce));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.RailCreated(alice, bob, address(this), NATIVE_TOKEN, expectedRailId, nonce);
         RailId railId = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
         assertEq(RailId.unwrap(railId), RailId.unwrap(expectedRailId));
 
         uint256 fiftyAt = vm.getBlockNumber();
+        expectRateSet(railId, 40);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 40);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
@@ -391,8 +432,10 @@ contract RailTest is Test {
         payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 20);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
 
+        expectSettled(railId, fiftyAt + 2, 80);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 80);
+        expectRateSet(railId, 5);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 5);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
 
@@ -406,8 +449,10 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
         // settling covers two of the three blocks, and the lockup covers the third exactly
+        expectSettled(railId, fiftyAt + 4, 10);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 10);
+        expectTerminated(railId, address(this));
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 5);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
@@ -422,6 +467,7 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -430,6 +476,7 @@ contract RailTest is Test {
         payments.deposit{value: 300}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
 
@@ -437,8 +484,10 @@ contract RailTest is Test {
         vm.roll(start + 4);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
+        expectSettled(rail, start + 3, 150);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectTerminated(rail, address(this));
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
@@ -455,6 +504,7 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -463,14 +513,17 @@ contract RailTest is Test {
         payments.deposit{value: 300}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
 
         vm.roll(start + 4);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
+        expectSettled(rail, start + 3, 150);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectTerminated(rail, alice);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
         vm.prank(alice);
@@ -488,6 +541,7 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -496,14 +550,17 @@ contract RailTest is Test {
         payments.deposit{value: 300}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
 
         vm.roll(start + 4);
         bytes memory script = newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
 
+        expectSettled(rail, start + 3, 150);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectTerminated(rail, alice);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
         vm.prank(alice);
@@ -522,6 +579,7 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -530,14 +588,17 @@ contract RailTest is Test {
         payments.deposit{value: 300}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
 
         vm.roll(start + 4);
         bytes memory script = newScript().sudo(alice).setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
 
+        expectSettled(rail, start + 3, 150);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectTerminated(rail, alice);
         vm.expectEmit(address(payments));
         emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
         payments.executeScript(script);
@@ -554,19 +615,23 @@ contract RailTest is Test {
         uint64 nonce = 0;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
-        payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
         vm.deal(alice, 300);
         vm.prank(alice);
         payments.deposit{value: 300}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 20);
 
         // 280 funds five whole blocks, leaving three owed against a lockup of 20
         vm.roll(start + 8);
+        expectSettled(rail, start + 5, 250);
+        expectTerminated(rail, address(this));
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 270, "250 settled plus the whole lockup");
@@ -580,6 +645,7 @@ contract RailTest is Test {
         uint64 nonce = 5;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -588,6 +654,7 @@ contract RailTest is Test {
         payments.deposit{value: 500}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 100);
 
@@ -597,6 +664,8 @@ contract RailTest is Test {
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, address(this), address(this)));
         payments.executeScript(ALL & ~CREATE_RAIL, script);
 
+        expectSettled(rail, start + 2, 100);
+        expectTerminated(rail, address(this));
         payments.executeScript(script);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the operator ended the rail its own identity derives");
@@ -612,6 +681,7 @@ contract RailTest is Test {
         uint64 nonce = 9;
 
         vm.prank(alice);
+        expectAuthorized(alice, address(this), CREATE_RAIL);
         payments.authorize(address(this), CREATE_RAIL);
         RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
 
@@ -620,6 +690,7 @@ contract RailTest is Test {
         payments.deposit{value: 500}();
 
         uint256 start = vm.getBlockNumber();
+        expectRateSet(rail, 50);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
 
         bytes memory script = newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
@@ -630,6 +701,8 @@ contract RailTest is Test {
         payments.executeScript(script);
 
         vm.roll(start + 2);
+        expectSettled(rail, start + 2, 100);
+        expectTerminated(rail, alice);
         vm.prank(alice);
         payments.executeScript(script);
 

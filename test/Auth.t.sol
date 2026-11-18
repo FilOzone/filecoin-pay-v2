@@ -37,6 +37,8 @@ contract AuthTest is Test {
     function _authorize(address owner, address operator, Permissions permissions) internal {
         vm.prank(owner);
         vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(owner, operator, permissions);
+        vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(owner, operator, permissions.isOperator());
         pay.authorize(operator, permissions);
     }
@@ -115,6 +117,8 @@ contract AuthTest is Test {
         bytes memory grant = newScript().authorize(BOB, ALL).build();
         vm.prank(ALICE);
         vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(ALICE, BOB, Permissions.wrap(0xff) & (ALL & ~WITHDRAW));
+        vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(ALICE, BOB, true);
         pay.executeScript(ALL & ~WITHDRAW, grant);
         assertTrue(pay.isOperator(ALICE, BOB));
@@ -135,6 +139,8 @@ contract AuthTest is Test {
 
         // the operator flag follows the TRANSFER bit the scope let through
         vm.prank(ALICE);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(ALICE, CAROL, Permissions.wrap(0xff) & (ALL & ~TRANSFER));
         vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(ALICE, CAROL, false);
         pay.executeScript(ALL & ~TRANSFER, newScript().authorize(CAROL, ALL).build());

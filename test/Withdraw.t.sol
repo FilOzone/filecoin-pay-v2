@@ -122,6 +122,8 @@ contract WithdrawTest is MockFVMTest {
         bytes memory script = newScript().sudo(alice).withdrawTo(100, bob).build();
 
         vm.prank(alice);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(alice, bob, WITHDRAW);
         pay.authorize(bob, WITHDRAW);
         vm.prank(bob);
         // withdrawing elsewhere takes WITHDRAW_TO, which WITHDRAW alone does not cover
@@ -129,6 +131,8 @@ contract WithdrawTest is MockFVMTest {
         pay.executeScript(script);
 
         vm.prank(alice);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(alice, bob, WITHDRAW_TO);
         pay.authorize(bob, WITHDRAW_TO);
         vm.prank(bob);
         pay.executeScript(script);

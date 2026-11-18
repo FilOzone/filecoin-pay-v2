@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {FilecoinPayV2, INFINITE} from "../src/FilecoinPayV2.sol";
+import {NONE, TRANSFER} from "../src/lib/Permissions.sol";
 
 contract ERC6909Test is Test {
     uint256 private constant NATIVE_TOKEN = 0;
@@ -94,6 +95,8 @@ contract ERC6909Test is Test {
     function testSetOperator() public {
         vm.prank(owner);
         vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(owner, spender, TRANSFER);
+        vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(owner, spender, true);
         assertTrue(pay.setOperator(spender, true));
         assertTrue(pay.isOperator(owner, spender));
@@ -108,6 +111,8 @@ contract ERC6909Test is Test {
         assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), 10, "operator spends without consuming allowance");
 
         vm.prank(owner);
+        vm.expectEmit(address(pay));
+        emit FilecoinPayV2.Authorized(owner, spender, NONE);
         vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(owner, spender, false);
         assertTrue(pay.setOperator(spender, false));
