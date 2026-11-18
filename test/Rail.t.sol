@@ -437,11 +437,114 @@ contract RailTest is Test {
         vm.roll(start + 4);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 200, "three blocks settled and one came out of the lockup");
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100, "the lockup the debt did not need");
+    }
+
+    function testTerminateByPayerForfeitsWholeLockup() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint64 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 300);
+        vm.prank(alice);
+        payments.deposit{value: 300}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
+
+        vm.roll(start + 4);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
+        vm.prank(alice);
+        payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the payer who walked away gets no refund");
+    }
+
+    function testTerminateByPayerScriptForfeitsWholeLockup() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint64 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 300);
+        vm.prank(alice);
+        payments.deposit{value: 300}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
+
+        vm.roll(start + 4);
+        bytes memory script = newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
+        vm.prank(alice);
+        payments.executeScript(script);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the payer who walked away gets no refund");
+    }
+
+    /// @dev sudo makes the operator the payer for the rest of the script, forfeit rule included
+    function testTerminateBySudoedPayerForfeitsWholeLockup() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint64 nonce = 0;
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        RailId rail = payments.createRail(alice, bob, nonce, NATIVE_TOKEN);
+
+        vm.deal(alice, 300);
+        vm.prank(alice);
+        payments.deposit{value: 300}();
+
+        uint256 start = vm.getBlockNumber();
+        payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 50);
+        payments.lock(alice, bob, nonce, NATIVE_TOKEN, 150);
+
+        vm.roll(start + 4);
+        bytes memory script = newScript().sudo(alice).setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
+
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        payments.executeScript(script);
+
+        assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the operator forfeited the lockup as the payer");
     }
 
     function testTerminateForgivesDebtBeyondLockup() public {

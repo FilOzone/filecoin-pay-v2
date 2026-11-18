@@ -325,12 +325,19 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
 
     function terminateRail(address operator, address from, address recipient, uint64 nonce, uint256 token) public {
         require(msg.sender == operator || msg.sender == from, Unauthorized(from, msg.sender));
-        _terminateRail(operator, from, recipient, nonce, token);
+        _terminateRail(operator, from, recipient, nonce, token, msg.sender);
     }
 
     /// @dev either side of the rail may terminate it, so a caller has to be one of them: the
     /// dispatcher proves it by deriving the rail from the identity its script authenticated as
-    function _terminateRail(address operator, address from, address recipient, uint64 nonce, uint256 token) internal {
+    function _terminateRail(
+        address operator,
+        address from,
+        address recipient,
+        uint64 nonce,
+        uint256 token,
+        address terminator
+    ) internal {
         Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
 
         uint256 settledUpTo = _settleStream(stream, operator, from, recipient, nonce, token);
@@ -342,7 +349,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         // and the lockup answers for it before any of it goes back to the payer
         uint256 owed = (block.number - settledUpTo) * uint256(state.incomingRate);
         uint128 paid = uint128(owed);
-        if (owed >= state.available) {
+        if (owed >= state.available || terminator == from) {
             paid = state.available;
         }
         unchecked {
@@ -705,7 +712,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                         from = operator;
                         (operator, curr) = curr.nextAddress();
                     }
-                    _terminateRail(operator, from, auth.recipient, auth.nonce, auth.token);
+                    _terminateRail(operator, from, auth.recipient, auth.nonce, auth.token, auth.authenticated);
                 } else {
                     // Ops.DISBURSEALL, Ops.DISBURSE, Ops.LOCK, Ops.UNLOCK, Ops.SETAVAILABLE
                     Stream storage stream = _existingRail(auth);
