@@ -387,9 +387,12 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         require(_settleStream(stream, operator, from, recipient, nonce, token) == block.number, Behind());
     }
 
+    event RailRateSet(RailId indexed railId, uint88 rate);
+
     /// @param previousRate must be read after settling, which a callback script can change
     function _setRate(Stream storage stream, Account storage account, uint88 previousRate, uint88 rate) internal {
         stream.state.incomingRate = rate;
+        emit RailRateSet(stream.getRailId(), rate);
 
         Checkpoint memory previous = account.latest;
         if (previous.modifiedEpoch != block.number) {
