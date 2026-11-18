@@ -718,15 +718,16 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                     if (method < Ops.LOCK) {
                         _disburse(stream, auth.authenticated, auth.from, auth.recipient, auth.token, amount);
                     } else {
-                        bool add = method != Ops.UNLOCK;
+                        bool increase = method != Ops.UNLOCK;
                         if (method == Ops.SETAVAILABLE) {
                             uint128 available = stream.state.available;
-                            add = amount > available;
-                            unchecked {
-                                amount = add ? amount - available : available - amount;
+                            assembly ("memory-safe") {
+                                increase := gt(amount, available)
+                                // amount = increase ? amount - available : available - amount
+                                amount := mul(sub(shl(1, increase), 1), sub(amount, available))
                             }
                         }
-                        _lockup(stream, users[auth.from].accounts[auth.token], amount, add);
+                        _lockup(stream, users[auth.from].accounts[auth.token], amount, increase);
                     }
                 }
             }
