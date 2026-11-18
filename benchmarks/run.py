@@ -52,12 +52,15 @@ TOKEN_MINT = SUDO_DEPOSIT + SELF_DEPOSIT + TOKEN_DEPOSIT + 2 * TOKEN_DEPOSIT_TO
 # Rail.t.sol amounts, scaled so per-block drain cannot outrun the payer between transactions
 RAIL_DEPOSIT = 10**6
 RAIL_RATE = 50
+RAIL_RATE_REPRICED = 40
 RAIL_LOCK = 50
 RAIL_DISBURSE = 25
 RAIL_WITHDRAW = 100
 # the lockup script leaves room to disburse and unlock before it empties the lockup
 RAIL_AVAILABLE = 200
 RAIL_UNLOCK = 75
+# less than the lockup leaves, so terminateRail still has one to forfeit
+RAIL_UNLOCK_PARTIAL = 10
 RAIL_RATE_DELTA = 25
 RAIL_RATE_FINAL = 10
 # the rail the external-entry-point steps operate on
@@ -553,6 +556,10 @@ class Runner:
                 {"name": "settleRail", "sender": self.operator,
                  "signature": "settleRail(address,address,address,uint64,uint256)",
                  "arguments": [self.operator] + rail},
+                # repricing an accruing rail credits the recipient; the row above, from rate zero, cannot
+                {"name": "modifyRate (accrued)", "sender": self.operator,
+                 "signature": "modifyRate(address,address,uint64,uint256,uint88)",
+                 "arguments": rail + [str(RAIL_RATE_REPRICED)]},
                 {"name": "lock", "sender": self.operator,
                  "signature": "lock(address,address,uint64,uint256,uint256)",
                  "arguments": rail + [str(RAIL_LOCK)]},
@@ -561,8 +568,10 @@ class Runner:
                  "arguments": rail + [str(RAIL_DISBURSE)]},
                 {"name": "unlock", "sender": self.operator,
                  "signature": "unlock(address,address,uint64,uint256,uint256)",
-                 "arguments": rail + [str(RAIL_LOCK - RAIL_DISBURSE)]},
-                {"name": "terminateRail", "sender": self.operator,
+                 "arguments": rail + [str(RAIL_UNLOCK_PARTIAL)]},
+                # only the payer forfeits a lockup: any other terminator settles to the current
+                # epoch, so it owes nothing and the credit never happens
+                {"name": "terminateRail (by payer)", "sender": self.alice,
                  "signature": "terminateRail(address,address,address,uint64,uint256)",
                  "arguments": [self.operator] + rail},
                 {"name": "executeScript/createRail", "sender": self.operator,
