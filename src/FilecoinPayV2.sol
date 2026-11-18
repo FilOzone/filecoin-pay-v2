@@ -233,6 +233,8 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         );
     }
 
+    event RailSettled(RailId indexed railId, uint256 settledUpTo, uint256 amount);
+
     /// @dev for callers that already hold the rail, so the derivation is not paid twice
     function _settleStream(
         Stream storage stream,
@@ -256,6 +258,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             loadedStream.settledUpTo = uint40(settledUpTo);
 
             uint256 amount = blocks * loadedStream.incomingRate;
+            emit RailSettled(stream.getRailId(), settledUpTo, amount);
             if (nonce & FLAG_CALLBACK != 0) {
                 uint256 prevBalance = uint256(loadedStream.available);
                 loadedStream.available = uint128(prevBalance + amount);
