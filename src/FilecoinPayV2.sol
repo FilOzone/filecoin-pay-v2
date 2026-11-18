@@ -126,11 +126,11 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         return users[owner].accounts[token].allowance[spender];
     }
 
+    event Authorized(address indexed user, address indexed operator, Permissions permissions);
+
     /// @inheritdoc IERC6909
     function setOperator(address spender, bool approved) external returns (bool) {
-        Authorization storage authorization = users[msg.sender].authorizations[spender];
-        authorization.permissions = authorization.permissions.setIsOperator(approved);
-        emit OperatorSet(msg.sender, spender, approved);
+        _authorize(msg.sender, spender, users[msg.sender].authorizations[spender].permissions.setIsOperator(approved));
         return true;
     }
 
@@ -210,6 +210,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     function _authorize(address owner, address operator, Permissions permissions) internal {
         users[owner].authorizations[operator].permissions = permissions;
         // emiting the event unconditionally avoids reading the prior state
+        emit Authorized(owner, operator, permissions);
         emit OperatorSet(owner, operator, permissions.isOperator());
     }
 
