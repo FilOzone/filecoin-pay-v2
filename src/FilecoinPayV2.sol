@@ -333,6 +333,8 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         _terminateRail(operator, from, recipient, nonce, token, msg.sender);
     }
 
+    event RailTerminated(RailId indexed railId, address terminator);
+
     /// @dev either side of the rail may terminate it, so a caller has to be one of them: the
     /// dispatcher proves it by deriving the rail from the identity its script authenticated as
     function _terminateRail(
@@ -346,6 +348,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
 
         uint256 settledUpTo = _settleStream(stream, operator, from, recipient, nonce, token);
+        emit RailTerminated(stream.getRailId(), terminator);
 
         StreamState memory state = stream.state;
         Account storage account = users[from].accounts[token];
