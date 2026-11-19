@@ -9,10 +9,13 @@ import {stdError} from "forge-std/StdError.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {DEPOSIT, POP, PUSH, SETTOKEN, SUDO, newScript} from "../src/lib/Script.sol";
 import {ALL, NONE, Permissions, TRANSFER, WITHDRAW} from "../src/lib/Permissions.sol";
+import {UserLibrary} from "../src/lib/User.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 contract AuthTest is Test {
+    using UserLibrary for FilecoinPayV2;
+
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     address private constant CAROL = 0xCA401ca401Ca401CA401CA401cA401CA401ca401;
@@ -41,6 +44,11 @@ contract AuthTest is Test {
         vm.expectEmit(address(pay));
         emit IERC6909.OperatorSet(owner, operator, permissions.isOperator());
         pay.authorize(operator, permissions);
+        assertPermissions(owner, operator, permissions);
+    }
+
+    function assertPermissions(address owner, address operator, Permissions expected) internal view {
+        assertEq(Permissions.unwrap(pay.permissions(owner, operator)), Permissions.unwrap(expected));
     }
 
     function testPushSudoDepositPopDeposit() public {
@@ -122,6 +130,7 @@ contract AuthTest is Test {
         emit IERC6909.OperatorSet(ALICE, BOB, true);
         pay.executeScript(ALL & ~WITHDRAW, grant);
         assertTrue(pay.isOperator(ALICE, BOB));
+        assertPermissions(ALICE, BOB, Permissions.wrap(0xff) & (ALL & ~WITHDRAW));
 
         vm.prank(ALICE);
         pay.deposit(address(token), 500);
@@ -145,6 +154,7 @@ contract AuthTest is Test {
         emit IERC6909.OperatorSet(ALICE, CAROL, false);
         pay.executeScript(ALL & ~TRANSFER, newScript().authorize(CAROL, ALL).build());
         assertFalse(pay.isOperator(ALICE, CAROL));
+        assertPermissions(ALICE, CAROL, Permissions.wrap(0xff) & (ALL & ~TRANSFER));
     }
 
     function testTransferFrom() public {

@@ -26,6 +26,7 @@ import {
 } from "./lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "./lib/RailId.sol";
 import {ScriptReading} from "./lib/ScriptReading.sol";
+import {Account, Checkpoint, User} from "./lib/User.sol";
 
 /// @dev an allowance of INFINITE is never decremented
 uint256 constant INFINITE = type(uint256).max;
@@ -45,26 +46,6 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     using RailIdLibrary for StreamState;
     using FVMPay for address;
     using SafeTransferLib for address;
-
-    struct Authorization {
-        Permissions permissions;
-    }
-
-    struct Checkpoint {
-        uint128 balance;
-        uint88 drainRate;
-        uint40 modifiedEpoch;
-    }
-
-    struct Account {
-        Checkpoint latest;
-        mapping(address spender => uint256) allowance;
-    }
-
-    struct User {
-        mapping(uint256 token => Account) accounts;
-        mapping(address authorized => Authorization) authorizations;
-    }
 
     mapping(address owner => User) private users;
 

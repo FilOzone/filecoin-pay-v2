@@ -17,11 +17,14 @@ import {
 } from "../src/lib/Permissions.sol";
 import {RailId} from "../src/lib/RailId.sol";
 import {ScriptBuilder, newScript} from "../src/lib/Script.sol";
+import {UserLibrary} from "../src/lib/User.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @dev the dispatcher reads what an op requires out of one packed table, so every entry needs a case
 contract ScriptPermissionsTest is Test {
+    using UserLibrary for FilecoinPayV2;
+
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     address private constant CAROL = 0xCA401ca401Ca401CA401CA401cA401CA401ca401;
@@ -71,6 +74,7 @@ contract ScriptPermissionsTest is Test {
         _allows(AUTHORIZE, script);
         // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on
         assertFalse(pay.isOperator(ALICE, CAROL));
+        assertEq(Permissions.unwrap(pay.permissions(ALICE, CAROL)), Permissions.unwrap(AUTHORIZE));
     }
 
     function testTerminateRail() public {

@@ -8,11 +8,13 @@ import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 import {ALL, CREATE_RAIL, Permissions} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
 import {newScript} from "../src/lib/Script.sol";
+import {Checkpoint, UserLibrary} from "../src/lib/User.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
 contract RailTest is Test {
     using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
+    using UserLibrary for FilecoinPayV2;
 
     FilecoinPayV2 internal payments;
 
@@ -40,6 +42,13 @@ contract RailTest is Test {
     function expectTerminated(RailId rail, address terminator) internal {
         vm.expectEmit(address(payments));
         emit FilecoinPayV2.RailTerminated(rail, terminator);
+    }
+
+    function assertCheckpoint(address user, uint128 balance, uint88 drainRate, uint40 modifiedEpoch) internal view {
+        Checkpoint memory checkpoint = payments.latest(user, NATIVE_TOKEN);
+        assertEq(checkpoint.balance, balance, "balance");
+        assertEq(checkpoint.drainRate, drainRate, "drainRate");
+        assertEq(checkpoint.modifiedEpoch, modifiedEpoch, "modifiedEpoch");
     }
 
     function testCreate() public {
@@ -117,6 +126,7 @@ contract RailTest is Test {
         assertEq(state.incomingRate, 50);
         assertEq(state.settledUpTo, fiftyAt);
         assertEq(state.available, 0);
+        assertCheckpoint(alice, 0, 50, fiftyAt);
 
         vm.roll(fiftyAt + 1);
         uint256 settledUpTo = payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
@@ -134,6 +144,7 @@ contract RailTest is Test {
         payments.deposit{value: 500}();
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 0);
+        assertCheckpoint(alice, 500, 50, fiftyAt);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 50);
@@ -147,6 +158,8 @@ contract RailTest is Test {
         assertEq(settledUpTo, fiftyAt + 1);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
+        assertCheckpoint(alice, 500, 50, fiftyAt);
+        assertCheckpoint(bob, 50, 0, 0);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 50);
@@ -164,6 +177,8 @@ contract RailTest is Test {
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 0);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 500);
+        assertCheckpoint(alice, 0, 0, fiftyAt + 10);
+        assertCheckpoint(bob, 500, 0, 0);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 0);
