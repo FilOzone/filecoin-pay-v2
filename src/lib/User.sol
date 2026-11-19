@@ -29,7 +29,11 @@ library UserLibrary {
     uint256 private constant USERS_SLOT = 0;
 
     function _user(address owner) private pure returns (uint256 slot) {
-        return uint256(keccak256(abi.encode(owner, USERS_SLOT)));
+        assembly ("memory-safe") {
+            mstore(0, owner)
+            mstore(32, 0)
+            slot := keccak256(0, 64)
+        }
     }
 
     function permissions(IExtsload payments, address owner, address operator)
