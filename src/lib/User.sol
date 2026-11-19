@@ -41,13 +41,13 @@ library UserLibrary {
         view
         returns (Permissions granted)
     {
-        uint256 slot = _user(owner);
         assembly ("memory-safe") {
+            mstore(0, owner)
+            mstore(32, 0)
+            mstore(32, add(1, keccak256(0, 64)))
             mstore(0, operator)
-            mstore(32, add(1, slot))
-            slot := keccak256(0, 64)
-            mstore(0, 0x1e2eaeaf)
-            mstore(32, slot)
+            mstore(32, keccak256(0, 64))
+            mstore(0, 0x1e2eaeaf) // extsload
             let success := staticcall(gas(), payments, 28, 36, 0, 32)
             if iszero(success) {
                 returndatacopy(0, 0, returndatasize())
