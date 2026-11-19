@@ -217,6 +217,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     event RailSettled(RailId indexed railId, uint256 settledUpTo, uint256 amount);
 
     /// @dev for callers that already hold the rail, so the derivation is not paid twice
+    /// @return settledUpTo this settle's reach, possibly stale due to the callback
     function _settleStream(
         Stream storage stream,
         address operator,
@@ -328,10 +329,12 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     ) internal {
         Stream storage stream = operator.deriveRail(from, recipient, token, nonce);
 
-        uint256 settledUpTo = _settleStream(stream, operator, from, recipient, nonce, token);
+        _settleStream(stream, operator, from, recipient, nonce, token);
         emit RailTerminated(stream.getRailId(), terminator);
 
         StreamState memory state = stream.state;
+        // not the epoch _settleStream returned: its script may have settled the rail again
+        uint256 settledUpTo = uint256(state.settledUpTo);
         Account storage account = users[from].accounts[token];
         Checkpoint memory scratch = account.latest;
         // settling stopped where the balance ran out, so the blocks after it are this rail's debt,
@@ -340,6 +343,10 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         uint128 paid = uint128(owed);
         if (owed >= state.available || terminator == from) {
             paid = state.available;
+        }
+        // the script may have charged the payer past it; charging that span again underflows
+        if (settledUpTo < scratch.modifiedEpoch) {
+            settledUpTo = uint256(scratch.modifiedEpoch);
         }
         unchecked {
             scratch.balance += state.available - paid - uint128(scratch.drainRate)
