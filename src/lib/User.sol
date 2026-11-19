@@ -31,7 +31,7 @@ library UserLibrary {
     function _user(address owner) private pure returns (uint256 slot) {
         assembly ("memory-safe") {
             mstore(0, owner)
-            mstore(32, 0)
+            mstore(32, USERS_SLOT)
             slot := keccak256(0, 64)
         }
     }
@@ -43,7 +43,7 @@ library UserLibrary {
     {
         assembly ("memory-safe") {
             mstore(0, owner)
-            mstore(32, 0)
+            mstore(32, USERS_SLOT)
             mstore(32, add(1, keccak256(0, 64)))
             mstore(0, operator)
             mstore(32, keccak256(0, 64))
