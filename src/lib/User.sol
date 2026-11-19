@@ -41,7 +41,13 @@ library UserLibrary {
         view
         returns (Permissions granted)
     {
-        uint256 slot = uint256(keccak256(abi.encode(operator, _user(owner) + 1)));
+
+        uint256 slot = _user(owner);
+        assembly ("memory-safe") {
+            mstore(0, operator)
+            mstore(32, add(1, slot))
+            slot := keccak256(0, 64)
+        }
         return Permissions.wrap(uint256(payments.extsload(bytes32(slot))));
     }
 
