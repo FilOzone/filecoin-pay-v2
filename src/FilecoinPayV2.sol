@@ -391,9 +391,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
                 previous.modifiedEpoch = uint40(block.number);
             }
         }
-        unchecked {
-            previous.drainRate += rate - previousRate;
-        }
+        previous.drainRate = previous.drainRate - previousRate + rate;
         account.latest = previous;
     }
 

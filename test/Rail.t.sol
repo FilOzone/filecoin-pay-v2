@@ -323,6 +323,29 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 430, "the payer drains at the rate set last");
     }
 
+    function testRateSumOverflowReverts() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+        payments.createRail(alice, bob, 0, NATIVE_TOKEN);
+        payments.createRail(alice, bob, 1, NATIVE_TOKEN);
+
+        payments.modifyRate(alice, bob, 0, NATIVE_TOKEN, type(uint88).max);
+
+        vm.expectRevert(stdError.arithmeticError);
+        payments.modifyRate(alice, bob, 1, NATIVE_TOKEN, 1);
+
+        bytes memory script = newScript().setRail(alice, bob, 1).setRate(1).build();
+        vm.expectRevert(stdError.arithmeticError);
+        payments.executeScript(script);
+
+        payments.modifyRate(alice, bob, 0, NATIVE_TOKEN, 1);
+        payments.modifyRate(alice, bob, 1, NATIVE_TOKEN, type(uint88).max - 1);
+        assertCheckpoint(alice, 0, type(uint88).max, uint40(vm.getBlockNumber()));
+    }
+
     function testSettleRailNotCreated() public {
         address alice = makeAddr("alice");
         address bob = makeAddr("bob");
