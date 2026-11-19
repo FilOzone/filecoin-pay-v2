@@ -391,7 +391,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         Checkpoint memory previous = account.latest;
         if (previous.modifiedEpoch != block.number) {
             unchecked {
-                // NOTE: this cannot underflow
+                // _settleForRate required settling to reach this block, bounding the drain by balance
                 previous.balance -= uint128(
                     (block.number - uint256(previous.modifiedEpoch)) * uint256(previous.drainRate)
                 );
@@ -503,6 +503,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     // recipient leads: callers hold it nearest the stack top, so the shared body needs the fewest swaps
     function _credit(address recipient, address caller, address owner, uint256 token, uint256 amount) internal {
         unchecked {
+            // amount and the sum stay inside uint128 by the bound on Checkpoint
             users[recipient].accounts[token].latest.balance += uint128(amount);
         }
         emit Transfer(caller, owner, recipient, token, amount);

@@ -748,4 +748,43 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
     }
+
+    /// @dev the ceiling Checkpoint claims: the whole supply draining at the widest rate for 2**38 epochs
+    function testBalanceHoldsTheClaimedSupplyAndSpan() public {
+        address alice = makeAddr("alice");
+
+        uint128 supply = 1 << 127;
+        uint88 rate = type(uint88).max;
+        uint256 span = 1 << 38;
+
+        expectAuthorized(alice, address(this), CREATE_RAIL);
+        vm.prank(alice);
+        payments.authorize(address(this), CREATE_RAIL);
+
+        uint256 createdAt = vm.getBlockNumber();
+        // a rail to the payer herself credits the balance that her own drain charges
+        RailId rail = payments.createRail(alice, alice, 0, NATIVE_TOKEN);
+
+        vm.deal(alice, supply);
+        vm.prank(alice);
+        payments.deposit{value: supply}();
+        payments.modifyRate(alice, alice, 0, NATIVE_TOKEN, rate);
+        assertCheckpoint(alice, supply, rate, uint40(createdAt));
+
+        vm.roll(createdAt + span);
+        uint256 accrued = uint256(rate) * span;
+        expectSettled(rail, createdAt + span, accrued);
+        payments.settleRail(address(this), alice, alice, 0, NATIVE_TOKEN);
+
+        uint256 peak = uint256(supply) + accrued;
+        assertEq(peak, (1 << 127) + (1 << 126) - (1 << 38), "three quarters of uint128");
+        assertLt(peak, 1 << 128, "the credit did not wrap");
+        assertCheckpoint(alice, uint128(peak), rate, uint40(createdAt));
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply, "the drain matches the credit");
+
+        // the roll-forward charges the whole span at the whole rate
+        payments.modifyRate(alice, alice, 0, NATIVE_TOKEN, 0);
+        assertCheckpoint(alice, supply, 0, uint40(createdAt + span));
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply, "every attoFIL is still alice's");
+    }
 }

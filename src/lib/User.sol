@@ -4,6 +4,9 @@ pragma solidity ^0.8.37;
 import {IExtsload} from "../interfaces/IExtsload.sol";
 import {Permissions} from "./Permissions.sol";
 
+/// @dev balance is the claim as of modifiedEpoch, ahead of the spendable one by the drain since:
+/// balance <= totalSupply + drainRate * epochs. A uint88 rate adds 2**126 over 2**38 epochs, so a
+/// supply of 2**127 or less cannot wrap a credit inside 260,000 years of the uint40 epoch's million.
 struct Checkpoint {
     uint128 balance;
     uint88 drainRate;
