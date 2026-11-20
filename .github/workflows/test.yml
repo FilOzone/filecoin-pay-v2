@@ -24,3 +24,8 @@ jobs:
 
       - name: Test
         run: forge test
+
+      - name: Check vectors
+        run: |
+          git ls-files --error-unmatch vectors/script.json
+          git diff --exit-code -- vectors/
