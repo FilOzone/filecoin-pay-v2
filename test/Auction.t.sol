@@ -181,4 +181,58 @@ contract AuctionTest is FilecoinPayTest {
         assertEq(uint256(auctionInfo.begin), vm.getBlockNumber());
         assertEq(uint256(auctionInfo.price), 5 << 62);
     }
+
+    function testRatePrecisionWithRemainder() public {
+        depositNative(alice, alice, INITIAL_PRICE);
+        mockAndDepositTo(usdfc, alice, address(auction), 16 ether + 13);
+
+        vm.prank(alice);
+        payments.approve(address(auction), NATIVE_TOKEN, INITIAL_PRICE);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether, INITIAL_PRICE);
+
+        uint256 tokenId = uint256(uint160(address(usdfc)));
+        assertEq(payments.balanceOf(address(auction), tokenId), 13);
+
+        depositNative(alice, alice, 3);
+        vm.prank(alice);
+        payments.setOperator(address(auction), true);
+
+        // 13 wei at .25 each: required = 3, and bite == available scales the discarded remainder by 4
+        vm.expectEmit(address(auction));
+        emit Auction.Auctioned(address(usdfc), 13, 3, 3);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 13, 3);
+
+        Auction.DutchAuction memory auctionInfo;
+        (auctionInfo.price,) = auction.auctionOf(address(usdfc));
+        assertEq(uint256(auctionInfo.price), uint256(3) * (4 << 64) / 13);
+    }
+
+    function testRatePrecisionAtHighUnitPrice() public {
+        depositNative(alice, alice, INITIAL_PRICE);
+        mockAndDepositTo(usdfc, alice, address(auction), 14);
+
+        vm.prank(alice);
+        payments.approve(address(auction), NATIVE_TOKEN, INITIAL_PRICE);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 1, INITIAL_PRICE);
+
+        uint256 tokenId = uint256(uint160(address(usdfc)));
+        assertEq(payments.balanceOf(address(auction), tokenId), 13);
+
+        depositNative(alice, alice, 4 ether);
+        vm.prank(alice);
+        payments.setOperator(address(auction), true);
+
+        // 1 wei of 13 at 4 ether each: the remainder dropped by (3 << 64) / 13 scales by required, not by 4
+        vm.expectEmit(address(auction));
+        emit Auction.Auctioned(address(usdfc), 1, 4 ether, 4 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 1, 4 ether);
+
+        Auction.DutchAuction memory auctionInfo;
+        (auctionInfo.price,) = auction.auctionOf(address(usdfc));
+        assertEq(uint256(auctionInfo.price), ((uint256(4 ether) << 64) * (13 + 3)) / 13);
+    }
 }

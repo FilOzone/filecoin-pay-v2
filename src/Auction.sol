@@ -2,7 +2,7 @@
 pragma solidity ^0.8.37;
 
 import {BURN_ADDRESS} from "fvm-solidity/FVMActors.sol";
-import {exp2} from "prb-math/Common.sol";
+import {exp2, mulDiv} from "prb-math/Common.sol";
 
 import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
@@ -66,10 +66,8 @@ contract Auction {
             }
             required = uint128(((uint256(auction.price) * 10 ** 18) * uint256(bite) / exp2(elapsed)) >> 64);
 
-            auction.price = uint216(
-                ((uint256(required) << 64) / uint256(bite) * ((1 << 64) + ((3 << 64) * uint256(bite) / available)))
-                    >> 64
-            );
+            auction.price =
+                uint216(mulDiv(uint256(required) << 64, available + 3 * uint256(bite), uint256(bite) * available));
         }
         require(price >= required, Insufficient(required));
         auction.begin = uint40(block.number);
