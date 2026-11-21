@@ -10,6 +10,8 @@ import {Permissions, TRANSFER, WITHDRAW, WITHDRAW_TO} from "./lib/Permissions.so
 import {newScript} from "./lib/Script.sol";
 
 uint40 constant NEVER = type(uint40).max;
+uint128 constant INITIAL_PRICE = 1 ether;
+uint256 constant HALVING_INTERVAL = 60 * 24 * 7; // 3.5 days of epochs
 
 interface IFilecoinPayV2 {
     function balanceOf(address owner, uint256 token) external view returns (uint256);
@@ -38,6 +40,7 @@ contract Auction {
     receive() external payable {}
 
     function unwrap() external {
+        // TODO(perf); compare to PAYMENTS.withdraw
         PAYMENTS.executeScript(
             WITHDRAW,
             newScript()
@@ -58,7 +61,8 @@ contract Auction {
         );
     }
 
-    uint256 private constant HALVING_INTERVAL = 60 * 24 * 7; // 3.5 days of epochs
+    event Auctioned(address indexed token, uint128 bite, uint128 required, uint128 paid);
+    error Insufficient(uint128 required);
 
     function accept(address token, uint128 bite, uint128 price) external {
         uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
@@ -68,14 +72,15 @@ contract Auction {
         unchecked {
             elapsed = ((block.number - uint256(auction.begin)) << 64) / HALVING_INTERVAL;
         }
-        //require(elapsed < uEXP2_MAX_INPUT);
-        uint128 required = uint128((uint256(auction.price) << 64) * uint256(bite) / exp2(elapsed));
-        require(price <= required);
+        uint128 required = uint128(((uint256(auction.price) * 10 ** 18) * uint256(bite) / exp2(elapsed)) >> 64);
+        require(price >= required, Insufficient(required));
 
-        auction.price =
-            uint216((uint256(required) << 64) / uint256(bite) + 55340232221128654848 * uint256(bite) / available);
+        auction.price = uint216(
+            ((uint256(required) << 64) / uint256(bite) * ((1 << 64) + ((3 << 64) * uint256(bite) / available))) >> 64
+        );
         auction.begin = uint40(block.number);
         auctionOf[token] = auction;
+        emit Auctioned(token, bite, required, price);
 
         PAYMENTS.executeScript(
             TRANSFER,
@@ -87,15 +92,14 @@ contract Auction {
         );
     }
 
-    uint128 private constant INITIAL_PRICE = 1 ether;
-
     function firstAccept(address token, uint128 bite) external {
         DutchAuction memory auction = auctionOf[token];
         require(auction.begin == 0);
 
         auction.begin = uint40(block.number);
-        auction.price = uint216((uint256(INITIAL_PRICE) << 64) / uint256(bite));
-        uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
+        auction.price = uint216((uint256(INITIAL_PRICE) << 66) / uint256(bite));
+        auctionOf[token] = auction;
+        emit Auctioned(token, bite, INITIAL_PRICE, INITIAL_PRICE);
 
         PAYMENTS.executeScript(
             TRANSFER,

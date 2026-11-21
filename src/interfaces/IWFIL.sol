@@ -6,5 +6,5 @@ interface IWFIL is IERC20 {
     event Deposit(address indexed from, uint256 amount);
     event Withdrawal(address indexed to, uint256 amount);
     function withdraw(uint256 amount) external;
-    function deposit() public payable;
+    function deposit() external payable;
 }
