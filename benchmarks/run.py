@@ -35,6 +35,9 @@ INCREASERATE, DECREASERATE, SETRATE = 16, 17, 18
 DISBURSEALL, DISBURSE, LOCK, UNLOCK, SETAVAILABLE = 19, 20, 21, 22, 23
 TERMINATERAIL, TERMINATERAILBY = 24, 25
 NATIVE = "0x" + "00" * 20
+# canonical Filecoin mainnet tokens; the constructor only records them, so neither is deployed here
+WFIL = "0x60E1773636CF5E4A227d9AC24F20fEca034ee25A"
+USDFC = "0x80B98d3aa09ffff255c3ba4A241111Ff1262F045"
 # src/lib/Permissions.sol, suffixed so no permission reads as one of the opcodes above
 ALL_PERMISSION = (1 << 256) - 1
 TRANSFER_PERMISSION = 1 << 2
@@ -298,7 +301,9 @@ class Runner:
 
     def deploy(self) -> None:
         self.pay = self.step(
-            "deploy FilecoinPayV2", self.operator, creation_code=artifact_bytecode("FilecoinPayV2")
+            "deploy FilecoinPayV2", self.operator,
+            creation_code=artifact_bytecode("FilecoinPayV2")
+            + self.cast("abi-encode", "constructor(address,address)", WFIL, USDFC).removeprefix("0x"),
         )["contractAddress"]
         self.token = self.step(
             "deploy MockERC20", self.operator, creation_code=artifact_bytecode("MockERC20")

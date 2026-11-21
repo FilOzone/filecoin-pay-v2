@@ -8,6 +8,12 @@
   "lib/fvm-solidity": {
     "rev": "4a7acb06c9a7cc73fbc74cd7d7ccd64b0303bdba"
   },
+  "lib/prb-math": {
+    "tag": {
+      "name": "v4.2.4",
+      "rev": "3fbfb3e399b2271c344f79cf6a335d25aaac1f37"
+    }
+  },
   "lib/solady": {
     "tag": {
       "name": "v0.1.26",

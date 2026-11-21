@@ -2,8 +2,9 @@
 pragma solidity ^0.8.37;
 
 import {stdError} from "forge-std/StdError.sol";
-import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
+
+import {FilecoinPayTest} from "./FilecoinPayTest.sol";
 
 import {ALL, CREATE_RAIL, Permissions} from "../src/lib/Permissions.sol";
 import {RailId, RailIdLibrary, StreamState} from "../src/lib/RailId.sol";
@@ -11,18 +12,10 @@ import {newScript} from "../src/lib/Script.sol";
 import {Checkpoint, UserLibrary} from "../src/lib/User.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
-contract RailTest is Test {
+contract RailTest is FilecoinPayTest {
     using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
     using UserLibrary for FilecoinPayV2;
-
-    FilecoinPayV2 internal payments;
-
-    uint256 constant NATIVE_TOKEN = 0;
-
-    function setUp() public {
-        payments = new FilecoinPayV2();
-    }
 
     function expectAuthorized(address user, address operator, Permissions permissions) internal {
         vm.expectEmit(address(payments));
@@ -44,6 +37,17 @@ contract RailTest is Test {
         emit FilecoinPayV2.RailTerminated(rail, terminator);
     }
 
+    function expectDisbursed(address operator, address from, address recipient, uint256 fee, uint256 net) internal {
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(operator, from, address(auction), NATIVE_TOKEN, fee);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(operator, from, recipient, NATIVE_TOKEN, net);
+    }
+
+    function assertFees(uint256 fees) internal view {
+        assertEq(payments.balanceOf(address(auction), NATIVE_TOKEN), fees, "fees");
+    }
+
     function assertCheckpoint(address user, uint128 balance, uint88 drainRate, uint40 modifiedEpoch) internal view {
         Checkpoint memory checkpoint = payments.latest(user, NATIVE_TOKEN);
         assertEq(checkpoint.balance, balance, "balance");
@@ -52,9 +56,6 @@ contract RailTest is Test {
     }
 
     function testCreate() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
@@ -94,9 +95,6 @@ contract RailTest is Test {
     }
 
     function testRate() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -152,14 +150,14 @@ contract RailTest is Test {
         assertEq(state.available, 0);
 
         expectSettled(rail, fiftyAt + 1, 50);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
+        expectDisbursed(address(this), alice, bob, 1, 49);
         settledUpTo = payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(settledUpTo, fiftyAt + 1);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 450);
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 49);
+        assertFees(1);
         assertCheckpoint(alice, 500, 50, fiftyAt);
-        assertCheckpoint(bob, 50, 0, 0);
+        assertCheckpoint(bob, 49, 0, 0);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 50);
@@ -168,17 +166,17 @@ contract RailTest is Test {
 
         vm.roll(fiftyAt + 10);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 50);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 49);
 
         expectSettled(rail, fiftyAt + 10, 450);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 450);
+        expectDisbursed(address(this), alice, bob, 9, 441);
         expectRateSet(rail, 0);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 0);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 500);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 490);
+        assertFees(10);
         assertCheckpoint(alice, 0, 0, fiftyAt + 10);
-        assertCheckpoint(bob, 500, 0, 0);
+        assertCheckpoint(bob, 490, 0, 0);
 
         state = payments.getRail(rail);
         assertEq(state.incomingRate, 0);
@@ -187,9 +185,6 @@ contract RailTest is Test {
     }
 
     function testCreateRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 7;
 
         vm.deal(alice, 500);
@@ -225,9 +220,6 @@ contract RailTest is Test {
     }
 
     function testSetRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 3;
 
         vm.prank(alice);
@@ -256,8 +248,6 @@ contract RailTest is Test {
     }
 
     function testTransferAllWithDrain() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
         uint64 nonce = 0;
@@ -288,17 +278,14 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(carol, NATIVE_TOKEN), 400, "the sweep leaves what the rail accrued");
 
         expectSettled(rail, fiftyAt + 2, 100);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 100);
+        expectDisbursed(address(this), alice, bob, 2, 98);
         assertEq(payments.settleRail(address(this), alice, bob, nonce, NATIVE_TOKEN), fiftyAt + 2);
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 98);
+        assertFees(2);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
     }
 
     function testRateTwiceInOneBlock() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -324,9 +311,6 @@ contract RailTest is Test {
     }
 
     function testRateSumOverflowReverts() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
         payments.createRail(alice, bob, 0, NATIVE_TOKEN);
@@ -347,9 +331,6 @@ contract RailTest is Test {
     }
 
     function testSettleRailNotCreated() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -362,9 +343,6 @@ contract RailTest is Test {
     }
 
     function testLock() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -417,9 +395,6 @@ contract RailTest is Test {
     }
 
     function testDebt() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.deal(alice, 500);
@@ -462,17 +437,16 @@ contract RailTest is Test {
         vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
         payments.lock(alice, bob, nonce, NATIVE_TOKEN, 5);
 
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 5);
+        expectDisbursed(address(this), alice, bob, 0, 5);
         payments.disburse(alice, bob, nonce, NATIVE_TOKEN, 5);
         assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 5);
+        assertFees(0);
 
         payments.unlock(alice, bob, nonce, NATIVE_TOKEN, 20);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
 
         expectSettled(railId, fiftyAt + 2, 80);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 80);
+        expectDisbursed(address(this), alice, bob, 1, 79);
         expectRateSet(railId, 5);
         payments.modifyRate(alice, bob, nonce, NATIVE_TOKEN, 5);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 10);
@@ -488,20 +462,16 @@ contract RailTest is Test {
 
         // settling covers two of the three blocks, and the lockup covers the third exactly
         expectSettled(railId, fiftyAt + 4, 10);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 10);
+        expectDisbursed(address(this), alice, bob, 0, 10);
         expectTerminated(railId, address(this));
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 5);
+        expectDisbursed(address(this), alice, bob, 0, 5);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the lockup went to the debt, not back");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100, "every deposited attoFIL reached bob");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 99, "every deposited attoFIL left alice");
+        assertFees(1);
     }
 
     function testTerminateSplitsLockupBetweenDebtAndRefund() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -523,22 +493,18 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
         expectSettled(rail, start + 3, 150);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         expectTerminated(rail, address(this));
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 50);
+        expectDisbursed(address(this), alice, bob, 1, 49);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 200, "three blocks settled and one came out of the lockup");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 196, "three blocks settled and one came out of the lockup");
+        assertFees(4);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 100, "the lockup the debt did not need");
     }
 
     function testTerminateByPayerForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -559,23 +525,19 @@ contract RailTest is Test {
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
 
         expectSettled(rail, start + 3, 150);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         expectTerminated(rail, alice);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         vm.prank(alice);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 294, "one block of debt took the whole lockup");
+        assertFees(6);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the payer who walked away gets no refund");
     }
 
     function testTerminateByPayerScriptForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -596,24 +558,20 @@ contract RailTest is Test {
         bytes memory script = newScript().setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
 
         expectSettled(rail, start + 3, 150);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         expectTerminated(rail, alice);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(alice, alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         vm.prank(alice);
         payments.executeScript(script);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 294, "one block of debt took the whole lockup");
+        assertFees(6);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the payer who walked away gets no refund");
     }
 
     /// @dev sudo makes the operator the payer for the rest of the script, forfeit rule included
     function testTerminateBySudoedPayerForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -634,22 +592,18 @@ contract RailTest is Test {
         bytes memory script = newScript().sudo(alice).setRail(alice, bob, nonce).terminateRailBy(address(this)).build();
 
         expectSettled(rail, start + 3, 150);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         expectTerminated(rail, alice);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(this), alice, bob, NATIVE_TOKEN, 150);
+        expectDisbursed(address(this), alice, bob, 3, 147);
         payments.executeScript(script);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the rail is gone");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 300, "one block of debt took the whole lockup");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 294, "one block of debt took the whole lockup");
+        assertFees(6);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the operator forfeited the lockup as the payer");
     }
 
     function testTerminateForgivesDebtBeyondLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -669,17 +623,17 @@ contract RailTest is Test {
         // 280 funds five whole blocks, leaving three owed against a lockup of 20
         vm.roll(start + 8);
         expectSettled(rail, start + 5, 250);
+        expectDisbursed(address(this), alice, bob, 5, 245);
         expectTerminated(rail, address(this));
+        expectDisbursed(address(this), alice, bob, 0, 20);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 270, "250 settled plus the whole lockup");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 265, "250 settled plus the whole lockup");
+        assertFees(5);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 30, "what no whole block could settle stays with the payer");
     }
 
     function testTerminateRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 5;
 
         vm.prank(alice);
@@ -703,17 +657,17 @@ contract RailTest is Test {
         payments.executeScript(ALL & ~CREATE_RAIL, script);
 
         expectSettled(rail, start + 2, 100);
+        expectDisbursed(address(this), alice, bob, 2, 98);
         expectTerminated(rail, address(this));
         payments.executeScript(script);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the operator ended the rail its own identity derives");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100, "two blocks at 50");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 98, "two blocks at 50");
+        assertFees(2);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400, "the lockup owed nothing");
     }
 
     function testTerminateRailByScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
         uint64 nonce = 9;
@@ -740,19 +694,19 @@ contract RailTest is Test {
 
         vm.roll(start + 2);
         expectSettled(rail, start + 2, 100);
+        expectDisbursed(address(this), alice, bob, 2, 98);
         expectTerminated(rail, alice);
         vm.prank(alice);
         payments.executeScript(script);
 
         assertEq(payments.getRail(rail).settledUpTo, 0, "the payer ended it without the operator");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 98);
+        assertFees(2);
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 400);
     }
 
     /// @dev the ceiling Checkpoint claims: the whole supply draining at the widest rate for 2**38 epochs
     function testBalanceHoldsTheClaimedSupplyAndSpan() public {
-        address alice = makeAddr("alice");
-
         uint128 supply = 1 << 127;
         uint88 rate = type(uint88).max;
         uint256 span = 1 << 38;
@@ -779,12 +733,14 @@ contract RailTest is Test {
         uint256 peak = uint256(supply) + accrued;
         assertEq(peak, (1 << 127) + (1 << 126) - (1 << 38), "three quarters of uint128");
         assertLt(peak, 1 << 128, "the credit did not wrap");
-        assertCheckpoint(alice, uint128(peak), rate, uint40(createdAt));
-        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply, "the drain matches the credit");
+        uint128 fee = uint128(accrued / 50);
+        assertCheckpoint(alice, uint128(peak - fee), rate, uint40(createdAt));
+        assertFees(fee);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply - fee, "the drain matches the credit");
 
         // the roll-forward charges the whole span at the whole rate
         payments.modifyRate(alice, alice, 0, NATIVE_TOKEN, 0);
-        assertCheckpoint(alice, supply, 0, uint40(createdAt + span));
-        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply, "every attoFIL is still alice's");
+        assertCheckpoint(alice, supply - fee, 0, uint40(createdAt + span));
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), supply - fee, "every attoFIL but the fee is still alice's");
     }
 }
