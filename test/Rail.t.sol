@@ -56,9 +56,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testCreate() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, alice, address(this)));
@@ -98,9 +95,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testRate() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -191,9 +185,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testCreateRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 7;
 
         vm.deal(alice, 500);
@@ -229,9 +220,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testSetRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 3;
 
         vm.prank(alice);
@@ -260,8 +248,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTransferAllWithDrain() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
         uint64 nonce = 0;
@@ -300,9 +286,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testRateTwiceInOneBlock() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -328,9 +311,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testRateSumOverflowReverts() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         vm.prank(alice);
         payments.authorize(address(this), CREATE_RAIL);
         payments.createRail(alice, bob, 0, NATIVE_TOKEN);
@@ -351,9 +331,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testSettleRailNotCreated() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -366,9 +343,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testLock() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.expectRevert(FilecoinPayV2.RailNotCreated.selector);
@@ -421,9 +395,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testDebt() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.deal(alice, 500);
@@ -501,9 +472,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateSplitsLockupBetweenDebtAndRefund() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -537,9 +505,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateByPayerForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -573,9 +538,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateByPayerScriptForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -610,9 +572,6 @@ contract RailTest is FilecoinPayTest {
 
     /// @dev sudo makes the operator the payer for the rest of the script, forfeit rule included
     function testTerminateBySudoedPayerForfeitsWholeLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -645,9 +604,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateForgivesDebtBeyondLockup() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 0;
 
         vm.prank(alice);
@@ -678,9 +634,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateRailScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = 5;
 
         vm.prank(alice);
@@ -715,8 +668,6 @@ contract RailTest is FilecoinPayTest {
     }
 
     function testTerminateRailByScript() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
         address carol = makeAddr("carol");
 
         uint64 nonce = 9;
@@ -756,8 +707,6 @@ contract RailTest is FilecoinPayTest {
 
     /// @dev the ceiling Checkpoint claims: the whole supply draining at the widest rate for 2**38 epochs
     function testBalanceHoldsTheClaimedSupplyAndSpan() public {
-        address alice = makeAddr("alice");
-
         uint128 supply = 1 << 127;
         uint88 rate = type(uint88).max;
         uint256 span = 1 << 38;
