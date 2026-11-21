@@ -98,9 +98,9 @@ contract AuctionTest is FilecoinPayTest {
         depositNative(alice, address(auction), 1 ether);
 
         vm.expectRevert(); // TODO: specific error
-        auction.firstAccept(address(0), 1 ether);
+        auction.accept(address(0), 1 ether, INITIAL_PRICE);
         vm.expectRevert(); // TODO: specific error
-        auction.firstAccept(address(wfil), 1 ether);
+        auction.accept(address(wfil), 1 ether, INITIAL_PRICE);
         vm.expectRevert(); // TODO: specific error
         auction.accept(address(0), 1 ether, INITIAL_PRICE);
         vm.expectRevert(); // TODO: specific error
@@ -118,7 +118,7 @@ contract AuctionTest is FilecoinPayTest {
 
         // initial auction settles at .0625
         vm.prank(alice);
-        auction.firstAccept(address(usdfc), 16 ether);
+        auction.accept(address(usdfc), 16 ether, INITIAL_PRICE);
 
         uint256 tokenId = uint256(uint160(address(usdfc)));
 

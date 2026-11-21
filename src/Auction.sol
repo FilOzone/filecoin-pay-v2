@@ -60,19 +60,25 @@ contract Auction {
     error Insufficient(uint128 required);
 
     function accept(address token, uint128 bite, uint128 price) external {
-        uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
-        //require(bite < available)
         DutchAuction memory auction = auctionOf[token];
-        uint256 elapsed;
-        unchecked {
-            elapsed = ((block.number - uint256(auction.begin)) << 64) / HALVING_INTERVAL;
-        }
-        uint128 required = uint128(((uint256(auction.price) * 10 ** 18) * uint256(bite) / exp2(elapsed)) >> 64);
-        require(price >= required, Insufficient(required));
+        uint128 required;
+        if (auction.begin == 0) {
+            required = INITIAL_PRICE;
+            auction.price = uint216((uint256(INITIAL_PRICE) << 66) / uint256(bite));
+        } else {
+            uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
+            uint256 elapsed;
+            unchecked {
+                elapsed = ((block.number - uint256(auction.begin)) << 64) / HALVING_INTERVAL;
+            }
+            required = uint128(((uint256(auction.price) * 10 ** 18) * uint256(bite) / exp2(elapsed)) >> 64);
 
-        auction.price = uint216(
-            ((uint256(required) << 64) / uint256(bite) * ((1 << 64) + ((3 << 64) * uint256(bite) / available))) >> 64
-        );
+            auction.price = uint216(
+                ((uint256(required) << 64) / uint256(bite) * ((1 << 64) + ((3 << 64) * uint256(bite) / available)))
+                    >> 64
+            );
+        }
+        require(price >= required, Insufficient(required));
         auction.begin = uint40(block.number);
         auctionOf[token] = auction;
         emit Auctioned(token, bite, required, price);
@@ -81,25 +87,6 @@ contract Auction {
             TRANSFER,
             newScript()
                 .transferFrom(address(this), price, msg.sender)
-                .setToken(token)
-                .transfer(msg.sender, bite)
-                .build()
-        );
-    }
-
-    function firstAccept(address token, uint128 bite) external {
-        DutchAuction memory auction = auctionOf[token];
-        require(auction.begin == 0);
-
-        auction.begin = uint40(block.number);
-        auction.price = uint216((uint256(INITIAL_PRICE) << 66) / uint256(bite));
-        auctionOf[token] = auction;
-        emit Auctioned(token, bite, INITIAL_PRICE, INITIAL_PRICE);
-
-        PAYMENTS.executeScript(
-            TRANSFER,
-            newScript()
-                .transferFrom(address(this), INITIAL_PRICE, msg.sender)
                 .setToken(token)
                 .transfer(msg.sender, bite)
                 .build()

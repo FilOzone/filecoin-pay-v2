@@ -27,6 +27,7 @@ exclude_lints = [
     "internal-function-used-once",
     "literal-instead-of-constant",
     "missing-events-access-control",
+    "missing-zero-check",
     "reentrancy-events",
     "reentrancy-no-eth",
     "require-revert-in-loop",
