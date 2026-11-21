@@ -149,6 +149,10 @@ contract AuctionTest is FilecoinPayTest {
 
         vm.expectEmit(address(auction));
         emit Auction.Auctioned(address(usdfc), 80 ether, 20 ether, 20 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 20 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 80 ether);
         vm.prank(alice);
         auction.accept(address(usdfc), 80 ether, 20 ether);
 
@@ -173,6 +177,10 @@ contract AuctionTest is FilecoinPayTest {
 
         vm.expectEmit(address(auction));
         emit Auction.Auctioned(address(usdfc), 100 ether, 31.25 ether, 50 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 50 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 100 ether);
         vm.prank(alice);
         auction.accept(address(usdfc), 100 ether, 50 ether);
 
@@ -201,6 +209,10 @@ contract AuctionTest is FilecoinPayTest {
         // 13 wei at .25 each: required = 3, and bite == available scales the discarded remainder by 4
         vm.expectEmit(address(auction));
         emit Auction.Auctioned(address(usdfc), 13, 3, 3);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 3);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 13);
         vm.prank(alice);
         auction.accept(address(usdfc), 13, 3);
 
@@ -228,6 +240,10 @@ contract AuctionTest is FilecoinPayTest {
         // 1 wei of 13 at 4 ether each: the remainder dropped by (3 << 64) / 13 scales by required, not by 4
         vm.expectEmit(address(auction));
         emit Auction.Auctioned(address(usdfc), 1, 4 ether, 4 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 4 ether);
+        vm.expectEmit(address(payments));
+        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 1);
         vm.prank(alice);
         auction.accept(address(usdfc), 1, 4 ether);
 
