@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-import {Test} from "forge-std/Test.sol";
 
-import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {
     ALL,
     AUTHORIZE,
@@ -18,36 +16,32 @@ import {
 import {RailId} from "../src/lib/RailId.sol";
 import {ScriptBuilder, newScript} from "../src/lib/Script.sol";
 import {UserLibrary} from "../src/lib/User.sol";
+import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 
+import {FilecoinPayTest} from "./FilecoinPayTest.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 /// @dev the dispatcher reads what an op requires out of one packed table, so every entry needs a case
-contract ScriptPermissionsTest is Test {
+contract ScriptPermissionsTest is FilecoinPayTest {
     using UserLibrary for FilecoinPayV2;
 
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     address private constant CAROL = 0xCA401ca401Ca401CA401CA401cA401CA401ca401;
 
-    FilecoinPayV2 private pay;
-    MockERC20 private token;
-    uint256 private tokenId;
-
-    function setUp() public {
-        pay = new FilecoinPayV2();
-        token = new MockERC20();
-        tokenId = uint256(uint160(address(token)));
+    function setUp() public override {
+        super.setUp();
 
         token.mint(ALICE, 1000);
         token.mint(BOB, 1000);
         vm.startPrank(ALICE);
-        token.approve(address(pay), type(uint256).max);
-        pay.deposit(address(token), 500);
+        token.approve(address(payments), type(uint256).max);
+        payments.deposit(address(token), 500);
         vm.stopPrank();
         vm.startPrank(BOB);
-        token.approve(address(pay), type(uint256).max);
-        pay.deposit(address(token), 500);
-        pay.approve(ALICE, tokenId, 100);
+        token.approve(address(payments), type(uint256).max);
+        payments.deposit(address(token), 500);
+        payments.approve(ALICE, tokenId, 100);
         vm.stopPrank();
     }
 
@@ -58,51 +52,51 @@ contract ScriptPermissionsTest is Test {
     function _rejects(Permissions scope, bytes memory script) internal {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(FilecoinPayV2.Unauthorized.selector, ALICE, ALICE));
-        pay.executeScript(scope, script);
+        payments.executeScript(scope, script);
     }
 
     function _allows(Permissions scope, bytes memory script) internal {
         vm.prank(ALICE);
-        pay.executeScript(scope, script);
+        payments.executeScript(scope, script);
     }
 
     function testAuthorize() public {
         bytes memory script = newScript().authorize(CAROL, ALL).build();
         _rejects(ALL & ~AUTHORIZE, script);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.Authorized(ALICE, CAROL, AUTHORIZE);
         _allows(AUTHORIZE, script);
         // the scope carried nothing but AUTHORIZE, so that is all CAROL may pass on
-        assertFalse(pay.isOperator(ALICE, CAROL));
-        assertEq(Permissions.unwrap(pay.permissions(ALICE, CAROL)), Permissions.unwrap(AUTHORIZE));
+        assertFalse(payments.isOperator(ALICE, CAROL));
+        assertEq(Permissions.unwrap(payments.permissions(ALICE, CAROL)), Permissions.unwrap(AUTHORIZE));
     }
 
     function testTerminateRail() public {
         vm.prank(BOB);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.Authorized(BOB, ALICE, CREATE_RAIL);
-        pay.authorize(ALICE, CREATE_RAIL);
+        payments.authorize(ALICE, CREATE_RAIL);
         vm.prank(ALICE);
-        RailId rail = pay.createRail(BOB, CAROL, 0, tokenId);
+        RailId rail = payments.createRail(BOB, CAROL, 0, tokenId);
 
         bytes memory script = _script().setRail(BOB, CAROL, 0).terminateRail().build();
         _rejects(ALL & ~CREATE_RAIL, script);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.RailTerminated(rail, ALICE);
         _allows(CREATE_RAIL, script);
     }
 
     function testTerminateRailBy() public {
         vm.prank(ALICE);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.Authorized(ALICE, BOB, CREATE_RAIL);
-        pay.authorize(BOB, CREATE_RAIL);
+        payments.authorize(BOB, CREATE_RAIL);
         vm.prank(BOB);
-        RailId rail = pay.createRail(ALICE, CAROL, 0, tokenId);
+        RailId rail = payments.createRail(ALICE, CAROL, 0, tokenId);
 
         bytes memory script = _script().setRail(ALICE, CAROL, 0).terminateRailBy(BOB).build();
         _rejects(ALL & ~CREATE_RAIL, script);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.RailTerminated(rail, ALICE);
         _allows(CREATE_RAIL, script);
     }
@@ -111,7 +105,7 @@ contract ScriptPermissionsTest is Test {
         bytes memory script = _script().deposit(100).build();
         _rejects(ALL & ~DEPOSIT, script);
         _allows(DEPOSIT, script);
-        assertEq(pay.balanceOf(ALICE, tokenId), 600);
+        assertEq(payments.balanceOf(ALICE, tokenId), 600);
     }
 
     function testDepositTo() public {
@@ -120,7 +114,7 @@ contract ScriptPermissionsTest is Test {
         _rejects(DEPOSIT, script);
         _rejects(TRANSFER, script);
         _allows(DEPOSIT_TO, script);
-        assertEq(pay.balanceOf(BOB, tokenId), 600);
+        assertEq(payments.balanceOf(BOB, tokenId), 600);
     }
 
     function testWithdraw() public {
@@ -142,22 +136,22 @@ contract ScriptPermissionsTest is Test {
         bytes memory script = _script().transfer(BOB, 100).build();
         _rejects(ALL & ~TRANSFER, script);
         _allows(TRANSFER, script);
-        assertEq(pay.balanceOf(BOB, tokenId), 600);
+        assertEq(payments.balanceOf(BOB, tokenId), 600);
     }
 
     function testTransferFrom() public {
         bytes memory script = _script().transferFrom(CAROL, 100, BOB).build();
         _rejects(ALL & ~TRANSFER, script);
         _allows(TRANSFER, script);
-        assertEq(pay.balanceOf(CAROL, tokenId), 100);
-        assertEq(pay.allowance(BOB, ALICE, tokenId), 0);
+        assertEq(payments.balanceOf(CAROL, tokenId), 100);
+        assertEq(payments.allowance(BOB, ALICE, tokenId), 0);
     }
 
     function testTransferAll() public {
         bytes memory script = _script().transferAll(BOB).build();
         _rejects(ALL & ~TRANSFER, script);
         _allows(TRANSFER, script);
-        assertEq(pay.balanceOf(ALICE, tokenId), 0);
-        assertEq(pay.balanceOf(BOB, tokenId), 1000);
+        assertEq(payments.balanceOf(ALICE, tokenId), 0);
+        assertEq(payments.balanceOf(BOB, tokenId), 1000);
     }
 }

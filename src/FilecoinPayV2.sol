@@ -10,7 +10,9 @@ import {IRailV2} from "./interfaces/IRail.sol";
 import "./lib/Script.sol" as Ops;
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+import {Auction} from "./Auction.sol";
 import {Extsload} from "./Extsload.sol";
+import {IWFIL} from "./interfaces/IWFIL.sol";
 import {
     ALL,
     AUTHORIZE_U256,
@@ -263,7 +265,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
             } else {
                 stream.state = loadedStream;
                 if (amount > 0) {
-                    _credit(recipient, operator, from, token, amount);
+                    _creditWithFee(recipient, operator, from, token, amount);
                 }
             }
         }
@@ -357,7 +359,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         account.latest = scratch;
         delete stream.state;
         if (paid > 0) {
-            _credit(recipient, from, token, paid);
+            _creditWithFee(recipient, operator, from, token, paid);
         }
     }
 
@@ -418,7 +420,7 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         uint128 amount
     ) internal {
         stream.state.available -= amount;
-        _credit(recipient, operator, from, token, uint256(amount));
+        _creditWithFee(recipient, operator, from, token, uint256(amount));
     }
 
     error Exists();
@@ -501,16 +503,38 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
     }
 
     // recipient leads: callers hold it nearest the stack top, so the shared body needs the fewest swaps
-    function _credit(address recipient, address caller, address owner, uint256 token, uint256 amount) internal {
+    function _credit(address recipient, address operator, address owner, uint256 token, uint256 amount) internal {
         unchecked {
             // amount and the sum stay inside uint128 by the bound on Checkpoint
             users[recipient].accounts[token].latest.balance += uint128(amount);
         }
-        emit Transfer(caller, owner, recipient, token, amount);
+        emit Transfer(operator, owner, recipient, token, amount);
     }
 
     function _credit(address recipient, address owner, uint256 token, uint256 amount) internal {
         _credit(recipient, msg.sender, owner, token, amount);
+    }
+
+    address private immutable AUCTION;
+    uint256 private immutable WFIL;
+    uint256 private immutable USDFC;
+
+    constructor(IWFIL wfil, address usdfc) {
+        AUCTION = address(new Auction(wfil));
+        WFIL = uint256(uint160(address(wfil)));
+        USDFC = uint256(uint160(usdfc));
+    }
+
+    function _creditWithFee(address recipient, address operator, address owner, uint256 token, uint256 amount) internal {
+        // TODO(perf): consider bitwise & (probabilistic but cheaper)
+        uint256 wfil = WFIL;
+        uint256 usdfc = USDFC;
+        uint256 fee;
+        assembly ("memory-safe") {
+            fee := div(mul(sub(2, iszero(mul(mul(token, xor(token, wfil)), xor(token, usdfc)))), amount), 50)
+        }
+        _credit(AUCTION, operator, owner, token, fee);
+        _credit(recipient, operator, owner, token, amount - fee);
     }
 
     /// @dev the checkpoint keeps its epoch, so the rails it owes still drain from where they left off
