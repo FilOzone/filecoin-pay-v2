@@ -3,5 +3,8 @@ pragma solidity ^0.8.37;
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 interface IWFIL is IERC20 {
+    event Deposit(address indexed from, uint256 amount);
+    event Withdrawal(address indexed to, uint256 amount);
     function withdraw(uint256 amount) external;
+    function deposit() public payable;
 }

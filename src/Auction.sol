@@ -26,7 +26,7 @@ contract Auction {
         uint40 begin;
     }
 
-    mapping (address token => DutchAuction) public auctionOf;
+    mapping(address token => DutchAuction) public auctionOf;
 
     constructor(IWFIL wfil) {
         PAYMENTS = IFilecoinPayV2(msg.sender);
@@ -72,13 +72,18 @@ contract Auction {
         uint128 required = uint128((uint256(auction.price) << 64) * uint256(bite) / exp2(elapsed));
         require(price <= required);
 
-        auction.price = uint216((uint256(required) << 64) / uint256(bite) + 55340232221128654848 * uint256(bite) / available);
+        auction.price =
+            uint216((uint256(required) << 64) / uint256(bite) + 55340232221128654848 * uint256(bite) / available);
         auction.begin = uint40(block.number);
         auctionOf[token] = auction;
 
         PAYMENTS.executeScript(
             TRANSFER,
-            newScript().transferFrom(address(this), price, msg.sender).setToken(token).transfer(msg.sender, bite).build()
+            newScript()
+                .transferFrom(address(this), price, msg.sender)
+                .setToken(token)
+                .transfer(msg.sender, bite)
+                .build()
         );
     }
 
@@ -94,7 +99,11 @@ contract Auction {
 
         PAYMENTS.executeScript(
             TRANSFER,
-            newScript().transferFrom(address(this), INITIAL_PRICE, msg.sender).setToken(token).transfer(msg.sender, bite).build()
+            newScript()
+                .transferFrom(address(this), INITIAL_PRICE, msg.sender)
+                .setToken(token)
+                .transfer(msg.sender, bite)
+                .build()
         );
     }
 }

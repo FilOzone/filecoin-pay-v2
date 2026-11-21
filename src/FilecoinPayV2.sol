@@ -525,7 +525,9 @@ contract FilecoinPayV2 is Extsload, IERC6909 {
         USDFC = uint256(uint160(usdfc));
     }
 
-    function _creditWithFee(address recipient, address operator, address owner, uint256 token, uint256 amount) internal {
+    function _creditWithFee(address recipient, address operator, address owner, uint256 token, uint256 amount)
+        internal
+    {
         // TODO(perf): consider bitwise & (probabilistic but cheaper)
         uint256 wfil = WFIL;
         uint256 usdfc = USDFC;

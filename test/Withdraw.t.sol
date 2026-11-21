@@ -9,7 +9,6 @@ import {ALL, WITHDRAW, WITHDRAW_TO} from "../src/lib/Permissions.sol";
 import {newScript} from "../src/lib/Script.sol";
 
 contract WithdrawTest is FilecoinPayTest {
-
     function setUp() public override {
         super.setUp();
 
