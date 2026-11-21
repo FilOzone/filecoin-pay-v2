@@ -4,19 +4,14 @@ pragma solidity ^0.8.37;
 import {BURN_ADDRESS} from "fvm-solidity/FVMActors.sol";
 import {exp2} from "prb-math/Common.sol";
 
+import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
-import {Dutch} from "./lib/Dutch.sol";
-import {Permissions, TRANSFER, WITHDRAW, WITHDRAW_TO} from "./lib/Permissions.sol";
+import {TRANSFER, WITHDRAW, WITHDRAW_TO} from "./lib/Permissions.sol";
 import {newScript} from "./lib/Script.sol";
 
 uint40 constant NEVER = type(uint40).max;
 uint128 constant INITIAL_PRICE = 1 ether;
 uint256 constant HALVING_INTERVAL = 60 * 24 * 7; // 3.5 days of epochs
-
-interface IFilecoinPayV2 {
-    function balanceOf(address owner, uint256 token) external view returns (uint256);
-    function executeScript(Permissions permissions, bytes memory script) external payable;
-}
 
 contract Auction {
     IFilecoinPayV2 private immutable PAYMENTS;

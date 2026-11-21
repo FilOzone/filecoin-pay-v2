@@ -12,6 +12,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {Auction} from "./Auction.sol";
 import {Extsload} from "./Extsload.sol";
+import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
 import {
     ALL,
@@ -40,7 +41,7 @@ uint256 constant PERMISSION_BY_OP = (AUTHORIZE_U256 << (8 * Ops.AUTHORIZE)) | (W
     | (TRANSFER_U256 << (8 * Ops.TRANSFERFROM)) | (TRANSFER_U256 << (8 * Ops.TRANSFERALL))
     | (CREATE_RAIL_U256 << (8 * Ops.TERMINATERAIL)) | (CREATE_RAIL_U256 << (8 * Ops.TERMINATERAILBY));
 
-contract FilecoinPayV2 is Extsload, IERC6909 {
+contract FilecoinPayV2 is Extsload, IFilecoinPayV2 {
     using ScriptReading for bytes;
     using ScriptReading for uint256;
     using RailIdLibrary for address;
