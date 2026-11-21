@@ -6,7 +6,7 @@ import {exp2} from "prb-math/Common.sol";
 
 import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
-import {TRANSFER, WITHDRAW, WITHDRAW_TO} from "./lib/Permissions.sol";
+import {TRANSFER, WITHDRAW_TO} from "./lib/Permissions.sol";
 import {newScript} from "./lib/Script.sol";
 
 uint40 constant NEVER = type(uint40).max;
@@ -35,14 +35,7 @@ contract Auction {
     receive() external payable {}
 
     function unwrap() external {
-        // TODO(perf); compare to PAYMENTS.withdraw
-        PAYMENTS.executeScript(
-            WITHDRAW,
-            newScript()
-                .setToken(address(WFIL))
-                .withdraw(uint128(PAYMENTS.balanceOf(address(this), uint256(uint160(address(WFIL))))))
-                .build()
-        );
+        PAYMENTS.withdraw(address(WFIL), uint128(PAYMENTS.balanceOf(address(this), uint256(uint160(address(WFIL))))));
         WFIL.withdraw(WFIL.balanceOf(address(this)));
     }
 
