@@ -534,7 +534,7 @@ contract FilecoinPayV2 is Extsload, IFilecoinPayV2 {
         uint256 usdfc = USDFC;
         uint256 fee;
         assembly ("memory-safe") {
-            fee := div(shr(iszero(mul(mul(token, xor(token, wfil)), xor(token, usdfc))), amount), 25)
+            fee := div(shr(or(or(iszero(token), eq(token, wfil)), eq(token, usdfc)), amount), 25)
         }
         _credit(AUCTION, operator, owner, token, fee);
         _credit(recipient, operator, owner, token, amount - fee);
