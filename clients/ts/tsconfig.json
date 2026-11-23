@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    // Language and Environment
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "moduleDetection": "force",
+    "types": ["node"],
+
+    // Modules
+    "module": "preserve",
+    "rewriteRelativeImportExtensions": true,
+
+    // Emit
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "stripInternal": true,
+    "noEmitOnError": true,
+
+    // Interop Constraints
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "esModuleInterop": true,
+
+    // Type Checking
+    "strict": true,
+    "noImplicitOverride": true,
+
+    // Completeness
+    "skipLibCheck": true
+  },
+  "include": ["src", "test"],
+  "exclude": ["node_modules", "dist"]
+}
