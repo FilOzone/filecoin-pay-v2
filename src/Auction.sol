@@ -88,20 +88,21 @@ contract Auction {
 
     function accept(address token, uint128 bite, uint128 price) external {
         DutchAuction storage stored = _auctionOf(token);
-        DutchAuction memory auction = stored;
+        // one slot, so solc folds these into a single SLOAD and they stay off memory
+        (int64 lastLogPrice, uint128 lastScale, uint40 lastEpoch) = (stored.logPrice, stored.scale, stored.lastEpoch);
         uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
 
         int256 logPrice = INITIAL_LOG_PRICE;
         uint256 scale;
-        if (auction.lastEpoch == 0) {
+        if (lastEpoch == 0) {
             scale = available;
         } else {
-            uint256 elapsed = block.number - uint256(auction.lastEpoch); // NEVER underflows, blocking the token
-            logPrice = int256(auction.logPrice) - int256((elapsed << 32) / HALVING_INTERVAL);
+            uint256 elapsed = block.number - uint256(lastEpoch); // NEVER underflows, blocking the token
+            logPrice = int256(lastLogPrice) - int256((elapsed << 32) / HALVING_INTERVAL);
             if (logPrice < -LOG_BIAS) {
                 logPrice = -LOG_BIAS;
             }
-            scale = _scaleOf(uint256(auction.scale), available, elapsed);
+            scale = _scaleOf(uint256(lastScale), available, elapsed);
         }
 
         // a bite that can settle is at most `available` <= `scale`, so one purchase is at most one
