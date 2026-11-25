@@ -99,13 +99,10 @@ contract AuctionTest is FilecoinPayTest {
         depositWrapped(alice, address(auction), 1 ether);
         depositNative(alice, address(auction), 1 ether);
 
-        vm.expectRevert(); // TODO: specific error
+        // the constructor dates both auctions NEVER, so measuring elapsed underflows
+        vm.expectRevert(stdError.arithmeticError);
         auction.accept(address(0), 1 ether, 1 ether);
-        vm.expectRevert(); // TODO: specific error
-        auction.accept(address(wfil), 1 ether, 1 ether);
-        vm.expectRevert(); // TODO: specific error
-        auction.accept(address(0), 1 ether, 1 ether);
-        vm.expectRevert(); // TODO: specific error
+        vm.expectRevert(stdError.arithmeticError);
         auction.accept(address(wfil), 1 ether, 1 ether);
     }
 
