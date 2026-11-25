@@ -2,120 +2,118 @@
 pragma solidity ^0.8.37;
 
 import {stdError} from "forge-std/StdError.sol";
-import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
+
+import {FilecoinPayTest} from "./FilecoinPayTest.sol";
 
 import {FilecoinPayV2, INFINITE} from "../src/FilecoinPayV2.sol";
 import {NONE, TRANSFER} from "../src/lib/Permissions.sol";
 
-contract ERC6909Test is Test {
-    uint256 private constant NATIVE_TOKEN = 0;
-
-    FilecoinPayV2 private pay;
+contract ERC6909Test is FilecoinPayTest {
     address private owner;
     address private spender;
     address private recipient;
 
-    function setUp() public {
-        pay = new FilecoinPayV2();
+    function setUp() public override {
+        super.setUp();
         owner = makeAddr("owner");
         spender = makeAddr("spender");
         recipient = makeAddr("recipient");
 
         vm.deal(owner, 1000);
         vm.prank(owner);
-        pay.deposit{value: 1000}();
+        payments.deposit{value: 1000}();
     }
 
     function testSupportsInterface() public view {
-        assertTrue(pay.supportsInterface(0x0f632fb3), "IERC6909");
-        assertTrue(pay.supportsInterface(0x01ffc9a7), "IERC165");
-        assertFalse(pay.supportsInterface(0xffffffff));
+        assertTrue(payments.supportsInterface(0x0f632fb3), "IERC6909");
+        assertTrue(payments.supportsInterface(0x01ffc9a7), "IERC165");
+        assertFalse(payments.supportsInterface(0xffffffff));
     }
 
     function testTransfer() public {
         vm.prank(owner);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.Transfer(owner, owner, recipient, NATIVE_TOKEN, 100);
-        assertTrue(pay.transfer(recipient, NATIVE_TOKEN, 100));
-        assertEq(pay.balanceOf(owner, NATIVE_TOKEN), 900);
-        assertEq(pay.balanceOf(recipient, NATIVE_TOKEN), 100);
+        assertTrue(payments.transfer(recipient, NATIVE_TOKEN, 100));
+        assertEq(payments.balanceOf(owner, NATIVE_TOKEN), 900);
+        assertEq(payments.balanceOf(recipient, NATIVE_TOKEN), 100);
 
         vm.prank(owner);
         vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
-        pay.transfer(recipient, NATIVE_TOKEN, 901);
+        payments.transfer(recipient, NATIVE_TOKEN, 901);
     }
 
     function testApproveTransferFrom() public {
         vm.prank(owner);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.Approval(owner, spender, NATIVE_TOKEN, 400);
-        assertTrue(pay.approve(spender, NATIVE_TOKEN, 400));
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), 400);
-        assertFalse(pay.isOperator(owner, spender));
+        assertTrue(payments.approve(spender, NATIVE_TOKEN, 400));
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), 400);
+        assertFalse(payments.isOperator(owner, spender));
 
         vm.prank(spender);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.Transfer(spender, owner, recipient, NATIVE_TOKEN, 300);
-        assertTrue(pay.transferFrom(owner, recipient, NATIVE_TOKEN, 300));
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), 100);
-        assertEq(pay.balanceOf(owner, NATIVE_TOKEN), 700);
-        assertEq(pay.balanceOf(recipient, NATIVE_TOKEN), 300);
+        assertTrue(payments.transferFrom(owner, recipient, NATIVE_TOKEN, 300));
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), 100);
+        assertEq(payments.balanceOf(owner, NATIVE_TOKEN), 700);
+        assertEq(payments.balanceOf(recipient, NATIVE_TOKEN), 300);
 
         vm.prank(spender);
         vm.expectRevert(stdError.arithmeticError);
-        pay.transferFrom(owner, recipient, NATIVE_TOKEN, 101);
+        payments.transferFrom(owner, recipient, NATIVE_TOKEN, 101);
 
         vm.prank(owner);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.Approval(owner, spender, NATIVE_TOKEN, 50);
-        pay.approve(spender, NATIVE_TOKEN, 50);
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), 50);
+        payments.approve(spender, NATIVE_TOKEN, 50);
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), 50);
     }
 
     function testInfiniteAllowance() public {
         vm.prank(owner);
-        pay.approve(spender, NATIVE_TOKEN, INFINITE);
+        payments.approve(spender, NATIVE_TOKEN, INFINITE);
 
         vm.prank(spender);
-        pay.transferFrom(owner, recipient, NATIVE_TOKEN, 600);
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), INFINITE);
+        payments.transferFrom(owner, recipient, NATIVE_TOKEN, 600);
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), INFINITE);
 
         vm.prank(spender);
-        pay.transferFrom(owner, recipient, NATIVE_TOKEN, 400);
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), INFINITE);
-        assertEq(pay.balanceOf(owner, NATIVE_TOKEN), 0);
-        assertEq(pay.balanceOf(recipient, NATIVE_TOKEN), 1000);
+        payments.transferFrom(owner, recipient, NATIVE_TOKEN, 400);
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), INFINITE);
+        assertEq(payments.balanceOf(owner, NATIVE_TOKEN), 0);
+        assertEq(payments.balanceOf(recipient, NATIVE_TOKEN), 1000);
 
         vm.prank(spender);
         vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
-        pay.transferFrom(owner, recipient, NATIVE_TOKEN, 1);
+        payments.transferFrom(owner, recipient, NATIVE_TOKEN, 1);
     }
 
     function testSetOperator() public {
         vm.prank(owner);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.Authorized(owner, spender, TRANSFER);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(owner, spender, true);
-        assertTrue(pay.setOperator(spender, true));
-        assertTrue(pay.isOperator(owner, spender));
+        assertTrue(payments.setOperator(spender, true));
+        assertTrue(payments.isOperator(owner, spender));
 
         vm.prank(owner);
-        pay.approve(spender, NATIVE_TOKEN, 10);
+        payments.approve(spender, NATIVE_TOKEN, 10);
 
         vm.prank(spender);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.Transfer(spender, owner, recipient, NATIVE_TOKEN, 1000);
-        assertTrue(pay.transferFrom(owner, recipient, NATIVE_TOKEN, 1000));
-        assertEq(pay.allowance(owner, spender, NATIVE_TOKEN), 10, "operator spends without consuming allowance");
+        assertTrue(payments.transferFrom(owner, recipient, NATIVE_TOKEN, 1000));
+        assertEq(payments.allowance(owner, spender, NATIVE_TOKEN), 10, "operator spends without consuming allowance");
 
         vm.prank(owner);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit FilecoinPayV2.Authorized(owner, spender, NONE);
-        vm.expectEmit(address(pay));
+        vm.expectEmit(address(payments));
         emit IERC6909.OperatorSet(owner, spender, false);
-        assertTrue(pay.setOperator(spender, false));
-        assertFalse(pay.isOperator(owner, spender));
+        assertTrue(payments.setOperator(spender, false));
+        assertFalse(payments.isOperator(owner, spender));
     }
 }

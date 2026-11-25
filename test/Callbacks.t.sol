@@ -2,8 +2,9 @@
 pragma solidity ^0.8.37;
 
 import {stdError} from "forge-std/StdError.sol";
-import {Test} from "forge-std/Test.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
+
+import {FilecoinPayTest} from "./FilecoinPayTest.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {CREATE_RAIL} from "../src/lib/Permissions.sol";
@@ -11,11 +12,9 @@ import {newScript} from "../src/lib/Script.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary} from "../src/lib/RailId.sol";
 import {Checkpoint, UserLibrary} from "../src/lib/User.sol";
 
-contract CallbacksTest is Test {
+contract CallbacksTest is FilecoinPayTest {
     using RailIdLibrary for FilecoinPayV2;
     using UserLibrary for FilecoinPayV2;
-
-    uint256 private constant NATIVE_TOKEN = 0;
 
     event SettleRailParams(
         RailId railId, uint256 prevSettledEpoch, uint256 settledUpTo, uint256 prevBalance, uint256 addsBalance
@@ -67,16 +66,12 @@ contract CallbacksTest is Test {
         emit IERC6909.Transfer(address(this), from, to, NATIVE_TOKEN, amount);
     }
 
-    FilecoinPayV2 internal payments;
-
-    function setUp() public {
-        payments = new FilecoinPayV2();
+    function expectDisbursed(address from, address recipient, uint256 fee, uint256 net) internal {
+        expectNativeTransfer(from, address(auction), fee);
+        expectNativeTransfer(from, recipient, net);
     }
 
     function testRateOps() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
@@ -118,9 +113,6 @@ contract CallbacksTest is Test {
     }
 
     function testSetOps() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
@@ -164,9 +156,6 @@ contract CallbacksTest is Test {
     }
 
     function testCallback() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
@@ -224,9 +213,6 @@ contract CallbacksTest is Test {
 
     /// @dev the callback funds the payer and settles the rail again, so the returned epoch falls behind
     function testTerminateAfterCallbackSettlesAgain() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = FLAG_CALLBACK;
 
         vm.prank(alice);
@@ -264,9 +250,6 @@ contract CallbacksTest is Test {
 
     /// @dev the callback's rate change on another rail charges the payer past this rail's settle point
     function testTerminateAfterCallbackRollsThePayerForward() public {
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
         uint64 nonce = FLAG_CALLBACK;
         uint64 other = 1;
 
@@ -289,6 +272,8 @@ contract CallbacksTest is Test {
         // 100 at 15 a block runs out at createdAt + 6, where this rail stops settling
         vm.roll(createdAt + 20);
         mockScript = newScript().transfer(alice, 200).setRail(alice, bob, other).setRate(5).build();
+        expectDisbursed(alice, bob, 2, 98);
+        expectDisbursed(alice, bob, 1, 59);
         payments.terminateRail(address(this), alice, bob, nonce, NATIVE_TOKEN);
 
         Checkpoint memory scratch = payments.latest(alice, NATIVE_TOKEN);
@@ -297,6 +282,7 @@ contract CallbacksTest is Test {
         assertEq(payments.getRail(railId).settledUpTo, 0, "the rail is gone");
 
         assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0, "the rails drained what the script gave");
-        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 160, "the other rail's 100 and this lockup's 60");
+        assertEq(payments.balanceOf(bob, NATIVE_TOKEN), 157, "the other rail's 100 and this lockup's 60");
+        assertEq(payments.balanceOf(address(auction), NATIVE_TOKEN), 3, "fees");
     }
 }
