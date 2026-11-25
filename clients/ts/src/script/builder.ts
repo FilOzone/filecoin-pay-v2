@@ -56,7 +56,8 @@ export interface ScriptBuilder {
   /**
    * Selects an existing rail for the rail ops that follow, without creating it.
    *
-   * The rail is the one the current account operates on the selected token.
+   * Only the payer, payee, and nonce are stored. The operator and token come from the current
+   * account and the selected token when a rail op runs.
    *
    * @param from - The payer.
    * @param recipient - The payee.
@@ -132,7 +133,13 @@ export interface ScriptBuilder {
   setAvailable(amount: bigint): ScriptBuilder
   /** Terminates the selected rail, as its operator. */
   terminateRail(): ScriptBuilder
-  /** Terminates the selected rail, as its payer, naming its `operator`. */
+  /**
+   * Terminates a rail the current account pays.
+   *
+   * The selection supplies only the recipient and nonce: its payer is ignored.
+   *
+   * @param operator - The rail's operator.
+   */
   terminateRailBy(operator: Address): ScriptBuilder
   /** Returns the script bytes to pass to `executeScript`. An empty script is `0x`. */
   build(): Hex

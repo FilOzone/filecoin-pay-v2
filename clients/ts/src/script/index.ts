@@ -10,4 +10,5 @@
  */
 export * from './builder.ts'
 export * from './decode.ts'
+export * from './describe.ts'
 export { type Op, type OperandType, type OperandValue, type OpName, ops } from './ops.ts'

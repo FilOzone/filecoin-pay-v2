@@ -1,9 +1,16 @@
 import { readFileSync } from 'node:fs'
 import type { Hex } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { Permissions } from '../src/constants.ts'
+import { FLAG_CALLBACK, NATIVE_TOKEN, Permissions } from '../src/constants.ts'
 import { FilecoinPayError, isFilecoinPayError, ScriptError } from '../src/errors/index.ts'
-import { createScript, decodeScript, type OpName, ops, type ScriptBuilder } from '../src/script/index.ts'
+import {
+  createScript,
+  decodeScript,
+  describeScript,
+  type OpName,
+  ops,
+  type ScriptBuilder,
+} from '../src/script/index.ts'
 
 const VECTORS = new URL('../../../vectors/script.json', import.meta.url)
 
@@ -125,5 +132,139 @@ describe('decodeScript', () => {
 
   it.each(['0x0', '0xzz', '00'])('rejects %s as not hex bytes', (script) => {
     expect(thrown(() => decodeScript(script as Hex))).toBeInstanceOf(ScriptError)
+  })
+})
+
+describe('describeScript', () => {
+  it.each(cases)('describes $name', ({ script }) => {
+    expect(describeScript(script)).toMatchSnapshot()
+  })
+
+  it('describes a script that creates and funds a rail', () => {
+    const script = createScript()
+      .setToken(A)
+      .createRail(A, B, FLAG_CALLBACK | 1n)
+      .setRate(1_000n)
+      .lock(500_000n)
+      .build()
+    expect(describeScript(script)).toEqual([
+      `Select token ${A}.`,
+      `Create the rail from ${A} to ${B} with nonce 9223372036854775809 (FLAG_CALLBACK | 1) and select it, with the current account as operator, on the selected token.`,
+      "Set the selected rail's rate to 1000 per epoch.",
+      "Move 500000 from the payer's balance into the selected rail's lockup.",
+    ])
+  })
+
+  it('breaks down a rail nonce only when it carries the callback flag', () => {
+    const nonce = (value: bigint) => describeScript(createScript().setRail(A, B, value).build())[0]
+    expect(nonce(7n)).toContain('with nonce 7 for the rail operations')
+    expect(nonce(FLAG_CALLBACK | 7n)).toContain('with nonce 9223372036854775815 (FLAG_CALLBACK | 7) for the rail')
+    expect(nonce((1n << 62n) | 7n)).toContain(`with nonce ${(1n << 62n) | 7n} for the rail operations`)
+  })
+
+  it.each([
+    [Permissions.TRANSFER, 'TRANSFER'],
+    [Permissions.CREATE_RAIL | Permissions.TRANSFER, 'TRANSFER | CREATE_RAIL'],
+    [Permissions.NONE, 'NONE'],
+    [0xffn, 'DEPOSIT | WITHDRAW | TRANSFER | CREATE_RAIL | APPROVE | AUTHORIZE | 0xc0'],
+  ])('names the permissions %i as %s', (permissions, names) => {
+    const [sentence] = describeScript(createScript().authorize(A, permissions).build())
+    expect(sentence).toContain(`to ${names}, up to`)
+  })
+
+  it('reports the ops after a pop outside any block as not run', () => {
+    const script = createScript().lock(1n).pop().setToken(A).lock(2n).pop().build()
+    expect(describeScript(script)).toEqual([
+      "Move 1 from the payer's balance into the selected rail's lockup.",
+      'End the script; the operations after it do not run.',
+      `Not run (the script ended at the pop above): Select token ${A}.`,
+      "Not run (the script ended at the pop above): Move 2 from the payer's balance into the selected rail's lockup.",
+      'Not run (the script ended at the pop above): Close the current block.',
+    ])
+    expect(describeScript(script)).toHaveLength(decodeScript(script).length)
+  })
+
+  it('describes the ops after a pop that closes a block', () => {
+    expect(describeScript(createScript().push().pop().lock(1n).build())).toEqual([
+      'Open a block; changes to the account, token, and rail made inside it are undone at the matching pop.',
+      'Close the current block.',
+      "Move 1 from the payer's balance into the selected rail's lockup.",
+    ])
+  })
+
+  it('throws where decodeScript does', () => {
+    expect(thrown(() => describeScript('0x1a'))).toBeInstanceOf(ScriptError)
+  })
+
+  describe('formatAmount', () => {
+    // Records the token each amount was formatted with, in script order.
+    function tokens(script: Hex): string[] {
+      const seen: string[] = []
+      describeScript(script, {
+        formatAmount: (amount, token) => {
+          seen.push(`${amount}@${token}`)
+          return ''
+        },
+      })
+      return seen
+    }
+
+    it('receives the token selected when each op runs', () => {
+      const script = createScript()
+        .lock(1n)
+        .setToken(A)
+        .lock(2n)
+        .push()
+        .lock(3n)
+        .setToken(B)
+        .lock(4n)
+        .reset()
+        .lock(5n)
+        .setToken(B)
+        .pop()
+        .lock(6n)
+        .setToken(B)
+        .reset()
+        .lock(7n)
+        .pop()
+        .lock(8n)
+        .build()
+      expect(tokens(script)).toEqual([
+        `1@${NATIVE_TOKEN}`,
+        `2@${A}`,
+        `3@${A}`,
+        `4@${B}`,
+        `5@${A}`,
+        `6@${A}`,
+        `7@${NATIVE_TOKEN}`,
+      ])
+    })
+
+    it('is not called for ops after the script ended', () => {
+      const script = createScript().lock(1n).pop().setToken(A).lock(2n).push().lock(3n).pop().lock(4n).build()
+      expect(tokens(script)).toEqual([`1@${NATIVE_TOKEN}`])
+    })
+
+    it('keeps the token across sudo', () => {
+      expect(tokens(createScript().setToken(A).sudo(B).lock(1n).build())).toEqual([`1@${A}`])
+    })
+
+    it('formats amounts and rates, and nothing else', () => {
+      const script = createScript()
+        .setToken(A)
+        .authorize(B, Permissions.TRANSFER)
+        .createRail(A, B, FLAG_CALLBACK | 7n)
+        .setRate(1_000n)
+        .transfer(B, 2_000n)
+        .build()
+      expect(tokens(script)).toEqual([`1000@${A}`, `2000@${A}`])
+      expect(describeScript(script, { formatAmount: (amount) => `${amount / 1000n}k` })).toEqual([
+        `Select token ${A}.`,
+        `Set the permissions of ${B} over the current account to TRANSFER, up to those the script holds.`,
+        `Create the rail from ${A} to ${B} with nonce 9223372036854775815 (FLAG_CALLBACK | 7) and select it, with the current account as operator, on the selected token.`,
+        "Set the selected rail's rate to 1k per epoch.",
+        `Transfer 2k of the selected token from the current account's balance to the balance of ${B}.`,
+      ])
+    })
   })
 })

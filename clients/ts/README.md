@@ -38,6 +38,34 @@ throws is a `ScriptError` (from `@filoz/filecoin-pay-v2/errors`).
 `decodeScript` throws on an unknown opcode and on a truncated op. The contract does neither: it runs an
 unknown opcode as `terminateRail` and reads a truncated op past the end of the script.
 
+### Describing a script
+
+`describeScript` returns one plain-English sentence per op, in script order. For the script above:
+
+```ts
+describeScript(script)
+// [
+//   'Select token 0x….',
+//   'Create the rail from 0x… to 0x… with nonce 9223372036854775809 (FLAG_CALLBACK | 1) and select it, with the current account as operator, on the selected token.',
+//   "Set the selected rail's rate to 1000 per epoch.",
+//   "Move 500000 from the payer's balance into the selected rail's lockup.",
+// ]
+```
+
+It describes each op on its own and does not resolve the account or rail the op applies to. Addresses
+are printed in full; they are shortened here. A `pop` outside any block ends the script: the ops
+after it are marked as not run and still described, with raw amounts, so the result has one entry per op.
+
+Amounts and rates are raw integers unless you pass `formatAmount`, which also receives the token
+selected when the op runs (`NATIVE_TOKEN` for native FIL):
+
+```ts
+describeScript(script, {
+  formatAmount: (amount, token) => (token === USDFC ? `${formatUnits(amount, 18)} USDFC` : `${amount}`),
+})
+// [..., "Set the selected rail's rate to 0.000000000000001 USDFC per epoch.", ...]
+```
+
 ## Ops
 
 A script is a concatenation of ops. Each op is one opcode byte followed by its operands in the order

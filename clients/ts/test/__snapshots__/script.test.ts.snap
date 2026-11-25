@@ -1,0 +1,244 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`describeScript > describes authorize 1`] = `
+[
+  "Set the permissions of 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce over the current account to DEPOSIT | WITHDRAW | TRANSFER | CREATE_RAIL | APPROVE | AUTHORIZE | 0xc0, up to those the script holds.",
+]
+`;
+
+exports[`describeScript > describes createAndFundRail 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Create the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 9223372036854775809 (FLAG_CALLBACK | 1) and select it, with the current account as operator, on the selected token.",
+  "Set the selected rail's rate to 1000 per epoch.",
+  "Move 500000 from the payer's balance into the selected rail's lockup.",
+]
+`;
+
+exports[`describeScript > describes createRail 1`] = `
+[
+  "Create the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF with nonce 18446744073709551615 (FLAG_CALLBACK | 9223372036854775807) and select it, with the current account as operator, on the selected token.",
+]
+`;
+
+exports[`describeScript > describes createThreeRails 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Create the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 9223372036854775815 (FLAG_CALLBACK | 7) and select it, with the current account as operator, on the selected token.",
+  "Move 500000000000000000 from the payer's balance into the selected rail's lockup.",
+  "Create the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 7 and select it, with the current account as operator, on the selected token.",
+  "Move 1000000000000000000 from the payer's balance into the selected rail's lockup.",
+  "Create the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xCA401ca401Ca401CA401CA401cA401CA401ca401 with nonce 4611686018427387911 and select it, with the current account as operator, on the selected token.",
+  "Move 300000000000000000 from the payer's balance into the selected rail's lockup.",
+]
+`;
+
+exports[`describeScript > describes decreaseRate 1`] = `
+[
+  "Decrease the selected rail's rate by 1218426182456967898401291 per epoch.",
+]
+`;
+
+exports[`describeScript > describes deposit 1`] = `
+[
+  "Deposit 1339673755198158349044581307228491536 of the selected token from the current account's address into the current account's balance.",
+]
+`;
+
+exports[`describeScript > describes depositAndAuthorize 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Deposit 100000000000000000000 of the selected token from the current account's address into the current account's balance.",
+  "Set the permissions of 0x2222222222222222222222222222222222222222 over the current account to CREATE_RAIL, up to those the script holds.",
+]
+`;
+
+exports[`describeScript > describes depositTo 1`] = `
+[
+  "Deposit 1339673755198158349044581307228491536 of the selected token from the current account's address into the balance of 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF.",
+]
+`;
+
+exports[`describeScript > describes disburse 1`] = `
+[
+  "Pay out 340282366920938463463374607431768211455 of the selected rail's lockup to its recipient.",
+]
+`;
+
+exports[`describeScript > describes disburseAll 1`] = `
+[
+  "Pay out the selected rail's entire lockup to its recipient.",
+]
+`;
+
+exports[`describeScript > describes empty 1`] = `[]`;
+
+exports[`describeScript > describes increaseRate 1`] = `
+[
+  "Increase the selected rail's rate by 309485009821345068724781055 per epoch.",
+]
+`;
+
+exports[`describeScript > describes lock 1`] = `
+[
+  "Move 1339673755198158349044581307228491536 from the payer's balance into the selected rail's lockup.",
+]
+`;
+
+exports[`describeScript > describes payerTerminate 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Select the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 9223372036854775809 (FLAG_CALLBACK | 1) for the rail operations that follow.",
+  "Terminate the rail paid by the current account on the selected token, using the selected recipient and nonce, with 0x2222222222222222222222222222222222222222 as its operator.",
+]
+`;
+
+exports[`describeScript > describes pop 1`] = `
+[
+  "End the script; the operations after it do not run.",
+]
+`;
+
+exports[`describeScript > describes push 1`] = `
+[
+  "Open a block; changes to the account, token, and rail made inside it are undone at the matching pop.",
+]
+`;
+
+exports[`describeScript > describes reset 1`] = `
+[
+  "Restore the account, token, and rail to what they were when the current block started.",
+]
+`;
+
+exports[`describeScript > describes setAvailable 1`] = `
+[
+  "Lock or unlock funds so the selected rail's lockup becomes exactly 1339673755198158349044581307228491536.",
+]
+`;
+
+exports[`describeScript > describes setRail 1`] = `
+[
+  "Select the rail from 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 72623859790382856 for the rail operations that follow.",
+]
+`;
+
+exports[`describeScript > describes setRate 1`] = `
+[
+  "Set the selected rail's rate to 309485009821345068724781055 per epoch.",
+]
+`;
+
+exports[`describeScript > describes setToken 1`] = `
+[
+  "Select token 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF.",
+]
+`;
+
+exports[`describeScript > describes settleAndWithdraw 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Settle the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 1 on the selected token, with 0x2222222222222222222222222222222222222222 as operator.",
+  "Settle the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 2 on the selected token, with 0x2222222222222222222222222222222222222222 as operator.",
+  "Settle the rail from 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 9223372036854775811 (FLAG_CALLBACK | 3) on the selected token, with 0x2222222222222222222222222222222222222222 as operator.",
+  "Withdraw 42000000000000000000 of the selected token from the current account's balance to the address 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce.",
+]
+`;
+
+exports[`describeScript > describes settleRail 1`] = `
+[
+  "Settle the rail from 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb with nonce 18446744073709551615 (FLAG_CALLBACK | 9223372036854775807) on the selected token, with 0x2222222222222222222222222222222222222222 as operator.",
+]
+`;
+
+exports[`describeScript > describes sudo 1`] = `
+[
+  "Act as 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce, using the permissions it granted to the current account, up to those the script holds.",
+]
+`;
+
+exports[`describeScript > describes sudoTransfer 1`] = `
+[
+  "Select token 0x1111111111111111111111111111111111111111.",
+  "Open a block; changes to the account, token, and rail made inside it are undone at the matching pop.",
+  "Act as 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce, using the permissions it granted to the current account, up to those the script holds.",
+  "Transfer 5 of the selected token from the current account's balance to the balance of 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb.",
+  "Close the current block.",
+  "Restore the account, token, and rail to what they were when the current block started.",
+  "Transfer the current account's entire spendable balance of the selected token to the balance of 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb.",
+]
+`;
+
+exports[`describeScript > describes terminateRail 1`] = `
+[
+  "Terminate the selected rail, acting as its operator.",
+]
+`;
+
+exports[`describeScript > describes terminateRailBy 1`] = `
+[
+  "Terminate the rail paid by the current account on the selected token, using the selected recipient and nonce, with 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb as its operator.",
+]
+`;
+
+exports[`describeScript > describes transfer 1`] = `
+[
+  "Transfer 340282366920938463463374607431768211455 of the selected token from the current account's balance to the balance of 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb.",
+]
+`;
+
+exports[`describeScript > describes transferAll 1`] = `
+[
+  "Transfer the current account's entire spendable balance of the selected token to the balance of 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb.",
+]
+`;
+
+exports[`describeScript > describes transferFrom 1`] = `
+[
+  "Transfer 1339673755198158349044581307228491536 of the selected token from the balance of 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce to the balance of 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF, with the current account spending as an operator or through an allowance.",
+]
+`;
+
+exports[`describeScript > describes unlock 1`] = `
+[
+  "Move 340282366920938463463374607431768211455 from the selected rail's lockup back to the payer's balance.",
+]
+`;
+
+exports[`describeScript > describes withdraw 1`] = `
+[
+  "Withdraw 340282366920938463463374607431768211455 of the selected token from the current account's balance to the current account's address.",
+]
+`;
+
+exports[`describeScript > describes withdrawTo 1`] = `
+[
+  "Withdraw 340282366920938463463374607431768211455 of the selected token from the current account's balance to the address 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb.",
+]
+`;
+
+exports[`describeScript > describes zeroOperands 1`] = `
+[
+  "Act as 0x0000000000000000000000000000000000000000, using the permissions it granted to the current account, up to those the script holds.",
+  "Select native FIL.",
+  "Set the permissions of 0x0000000000000000000000000000000000000000 over the current account to NONE, up to those the script holds.",
+  "Select the rail from 0x0000000000000000000000000000000000000000 to 0x0000000000000000000000000000000000000000 with nonce 0 for the rail operations that follow.",
+  "Create the rail from 0x0000000000000000000000000000000000000000 to 0x0000000000000000000000000000000000000000 with nonce 0 and select it, with the current account as operator, on the selected token.",
+  "Settle the rail from 0x0000000000000000000000000000000000000000 to 0x0000000000000000000000000000000000000000 with nonce 0 on the selected token, with 0x0000000000000000000000000000000000000000 as operator.",
+  "Withdraw 0 of the selected token from the current account's balance to the current account's address.",
+  "Deposit 0 of the selected token from the current account's address into the current account's balance.",
+  "Withdraw 0 of the selected token from the current account's balance to the address 0x0000000000000000000000000000000000000000.",
+  "Deposit 0 of the selected token from the current account's address into the balance of 0x0000000000000000000000000000000000000000.",
+  "Transfer 0 of the selected token from the current account's balance to the balance of 0x0000000000000000000000000000000000000000.",
+  "Transfer 0 of the selected token from the balance of 0x0000000000000000000000000000000000000000 to the balance of 0x0000000000000000000000000000000000000000, with the current account spending as an operator or through an allowance.",
+  "Transfer the current account's entire spendable balance of the selected token to the balance of 0x0000000000000000000000000000000000000000.",
+  "Increase the selected rail's rate by 0 per epoch.",
+  "Decrease the selected rail's rate by 0 per epoch.",
+  "Set the selected rail's rate to 0 per epoch.",
+  "Pay out 0 of the selected rail's lockup to its recipient.",
+  "Move 0 from the payer's balance into the selected rail's lockup.",
+  "Move 0 from the selected rail's lockup back to the payer's balance.",
+  "Lock or unlock funds so the selected rail's lockup becomes exactly 0.",
+  "Terminate the rail paid by the current account on the selected token, using the selected recipient and nonce, with 0x0000000000000000000000000000000000000000 as its operator.",
+]
+`;

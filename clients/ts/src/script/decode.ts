@@ -20,6 +20,12 @@ export type DecodedOp = {
  * Decoding is stricter than the contract, which runs an unknown opcode as
  * `terminateRail` and reads a truncated op past the end of the script.
  *
+ * Every op in the bytes is returned, including any after a `pop` outside a
+ * block, which the contract never runs. The contract ignores those bytes
+ * entirely, so a script that carries invalid ops there runs on chain but is
+ * rejected here: failing is safer than returning a script that cannot be
+ * fully read.
+ *
  * @param script - The script bytes, as built by `createScript`.
  * @returns The ops in script order. Integers are `bigint`, addresses are checksummed.
  * @throws A {@link ScriptError} naming the byte offset of an unknown opcode or
@@ -29,7 +35,7 @@ export type DecodedOp = {
  * ```ts
  * import { decodeScript } from '@filoz/filecoin-pay-v2/script'
  *
- * decodeScript('0x12000000000000000003e8')
+ * decodeScript('0x1200000000000000000003e8')
  * // [{ op: 'setRate', args: { rate: 1000n } }]
  * ```
  */
