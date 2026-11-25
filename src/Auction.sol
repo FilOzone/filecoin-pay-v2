@@ -114,7 +114,10 @@ contract Auction {
         require(price > valuation, Insufficient(valuation)); // strict, so every bite costs at least 1
 
         int256 next = logPrice + doublings;
-        stored.logPrice = int64(next > LOG_MAX ? LOG_MAX : next);
+        if (next > LOG_MAX) {
+            next = LOG_MAX;
+        }
+        stored.logPrice = int64(next);
         stored.scale = uint128(scale);
         stored.lastEpoch = uint40(block.number);
         emit Auctioned(token, bite, uint128(valuation), price);
