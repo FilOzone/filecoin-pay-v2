@@ -28,5 +28,6 @@ jobs:
       - name: Check vectors
         run: |
           forge script script/ScriptVectors.s.sol
+          forge script script/StorageVectors.s.sol
           git ls-files --error-unmatch vectors/script.json vectors/storage.json
           git diff --exit-code -- vectors/
