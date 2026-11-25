@@ -31,13 +31,25 @@ contract Auction {
         uint40 lastEpoch;
     }
 
-    mapping(address token => DutchAuction) public auctionOf;
+    /// @dev the token address is the slot, shifted to the top because the storage trie branches
+    /// from the high bits; indexing low buries every token under one more node. No state variable
+    /// may be declared: solc would place it on slot 0, which is the native token's own entry
+    function _auctionOf(address token) private pure returns (DutchAuction storage auction) {
+        assembly ("memory-safe") {
+            auction.slot := shl(96, token)
+        }
+    }
+
+    function auctionOf(address token) external view returns (int64 logPrice, uint128 scale, uint40 lastEpoch) {
+        DutchAuction storage auction = _auctionOf(token);
+        return (auction.logPrice, auction.scale, auction.lastEpoch);
+    }
 
     constructor(IWFIL wfil) {
         PAYMENTS = IFilecoinPayV2(msg.sender);
         WFIL = wfil;
-        auctionOf[address(0)].lastEpoch = NEVER;
-        auctionOf[address(wfil)].lastEpoch = NEVER;
+        _auctionOf(address(0)).lastEpoch = NEVER;
+        _auctionOf(address(wfil)).lastEpoch = NEVER;
     }
 
     receive() external payable {}
@@ -75,7 +87,8 @@ contract Auction {
     }
 
     function accept(address token, uint128 bite, uint128 price) external {
-        DutchAuction memory auction = auctionOf[token];
+        DutchAuction storage stored = _auctionOf(token);
+        DutchAuction memory auction = stored;
         uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
 
         int256 logPrice = INITIAL_LOG_PRICE;
@@ -100,10 +113,9 @@ contract Auction {
         require(price > valuation, Insufficient(valuation)); // strict, so every bite costs at least 1
 
         int256 next = logPrice + doublings;
-        auction.logPrice = int64(next > LOG_MAX ? LOG_MAX : next);
-        auction.scale = uint128(scale);
-        auction.lastEpoch = uint40(block.number);
-        auctionOf[token] = auction;
+        stored.logPrice = int64(next > LOG_MAX ? LOG_MAX : next);
+        stored.scale = uint128(scale);
+        stored.lastEpoch = uint40(block.number);
         emit Auctioned(token, bite, uint128(valuation), price);
 
         PAYMENTS.executeScript(

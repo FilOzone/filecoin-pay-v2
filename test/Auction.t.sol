@@ -270,7 +270,7 @@ contract AuctionTest is FilecoinPayTest {
     function poke(int64 logPrice, uint128 scale) internal {
         vm.store(
             address(auction),
-            keccak256(abi.encode(address(usdfc), uint256(0))),
+            bytes32(uint256(uint160(address(usdfc))) << 96),
             bytes32(uint256(uint64(logPrice)) | (uint256(scale) << 64) | (uint256(block.number) << 192))
         );
     }
