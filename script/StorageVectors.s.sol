@@ -1,21 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-import {Test} from "forge-std/Test.sol";
+import {Script} from "forge-std/Script.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {ALL, CREATE_RAIL, Permissions, TRANSFER} from "../src/lib/Permissions.sol";
 import {FLAG_CALLBACK, RailId, RailIdLibrary, Stream, StreamState} from "../src/lib/RailId.sol";
 import {Checkpoint, UserLibrary} from "../src/lib/User.sol";
 
-import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockERC20} from "../test/mocks/MockERC20.sol";
 
 /// @dev writes vectors/storage.json, the slots and packed words every client library reads through extsload
-contract StorageVectorsTest is Test {
+contract StorageVectors is Script {
     using RailIdLibrary for address;
     using RailIdLibrary for FilecoinPayV2;
     using RailIdLibrary for Stream;
     using UserLibrary for FilecoinPayV2;
+
+    error NotDryRun();
+    error UserSlotChanged();
+    error AccountSlotChanged();
+    error PermissionsSlotChanged();
+    error RailIdChanged();
+    error EmptySlot(bytes32 slot);
+    error CheckpointMismatch(bytes32 slot);
+    error PermissionsMismatch(bytes32 slot);
+    error StreamMismatch(bytes32 railId);
+    error CheckpointPackingChanged(bytes32 word);
+    error StreamPackingChanged(bytes32 word);
 
     string private constant PATH = "vectors/storage.json";
 
@@ -98,21 +111,19 @@ contract StorageVectorsTest is Test {
         vm.stopPrank();
     }
 
-    function testWriteVectors() public {
-        assertEq(
-            _userSlot(ALICE),
-            0x3e37386a03f45c688560b8782ec465a97cb1243fd074f4023f67a690faa9f9ce,
-            "user slot layout changed"
+    function run() public {
+        require(vm.isContext(VmSafe.ForgeContext.ScriptDryRun), NotDryRun());
+
+        require(
+            _userSlot(ALICE) == 0x3e37386a03f45c688560b8782ec465a97cb1243fd074f4023f67a690faa9f9ce, UserSlotChanged()
         );
-        assertEq(
-            _accountSlot(ALICE, TOKEN_ID),
-            0x43534bc6586293c75dc1bcb6b28331f9733d3a31504b1a9059e00c5784d42795,
-            "account slot layout changed"
+        require(
+            _accountSlot(ALICE, TOKEN_ID) == 0x43534bc6586293c75dc1bcb6b28331f9733d3a31504b1a9059e00c5784d42795,
+            AccountSlotChanged()
         );
-        assertEq(
-            _permissionsSlot(ALICE, OPERATOR),
-            0x1c90174af6b8577a7e4c7525ecf4c3175e4b2a67818c0de9b0abd5b6f592ebc6,
-            "permissions slot layout changed"
+        require(
+            _permissionsSlot(ALICE, OPERATOR) == 0x1c90174af6b8577a7e4c7525ecf4c3175e4b2a67818c0de9b0abd5b6f592ebc6,
+            PermissionsSlotChanged()
         );
 
         _user(ALICE);
@@ -181,7 +192,7 @@ contract StorageVectorsTest is Test {
 
     function _load(bytes32 slot) internal view returns (bytes32 word) {
         word = payments.extsload(slot);
-        assertNotEq(word, bytes32(0), "empty slot");
+        require(word != bytes32(0), EmptySlot(slot));
     }
 
     function _user(address owner) internal {
@@ -195,9 +206,11 @@ contract StorageVectorsTest is Test {
         bytes32 word = _load(slot);
         Checkpoint memory checkpoint = _unpackCheckpoint(word);
         Checkpoint memory latest = payments.latest(owner, token);
-        assertEq(checkpoint.balance, latest.balance, "balance");
-        assertEq(checkpoint.drainRate, latest.drainRate, "drainRate");
-        assertEq(checkpoint.modifiedEpoch, latest.modifiedEpoch, "modifiedEpoch");
+        require(
+            checkpoint.balance == latest.balance && checkpoint.drainRate == latest.drainRate
+                && checkpoint.modifiedEpoch == latest.modifiedEpoch,
+            CheckpointMismatch(slot)
+        );
 
         string memory key = string.concat("account.", vm.toString(accounts.length));
         vm.serializeAddress(key, "owner", owner);
@@ -209,7 +222,7 @@ contract StorageVectorsTest is Test {
     function _permissions(address owner, address operator) internal {
         bytes32 slot = _permissionsSlot(owner, operator);
         bytes32 word = _load(slot);
-        assertEq(uint256(word), Permissions.unwrap(payments.permissions(owner, operator)), "permissions");
+        require(Permissions.wrap(uint256(word)) == payments.permissions(owner, operator), PermissionsMismatch(slot));
 
         string memory key = string.concat("permissions.", vm.toString(permissions.length));
         vm.serializeAddress(key, "owner", owner);
@@ -221,15 +234,18 @@ contract StorageVectorsTest is Test {
 
     function _rail(address operator, address from, uint256 token, address recipient, uint64 nonce) internal {
         bytes32 railId = keccak256(abi.encodePacked(operator, from, address(uint160(token)), recipient, nonce));
-        assertEq(
-            uint256(railId), RailId.unwrap(operator.deriveRail(from, recipient, token, nonce).getRailId()), "rail id"
+        require(
+            uint256(railId) == RailId.unwrap(operator.deriveRail(from, recipient, token, nonce).getRailId()),
+            RailIdChanged()
         );
         bytes32 word = _load(railId);
         StreamState memory state = _unpackStream(word);
         StreamState memory stored = payments.getRail(RailId.wrap(uint256(railId)));
-        assertEq(state.incomingRate, stored.incomingRate, "incomingRate");
-        assertEq(state.settledUpTo, stored.settledUpTo, "settledUpTo");
-        assertEq(state.available, stored.available, "available");
+        require(
+            state.incomingRate == stored.incomingRate && state.settledUpTo == stored.settledUpTo
+                && state.available == stored.available,
+            StreamMismatch(railId)
+        );
 
         string memory key = string.concat("rail.", vm.toString(rails.length));
         vm.serializeAddress(key, "operator", operator);
@@ -248,9 +264,11 @@ contract StorageVectorsTest is Test {
             word := sload(packedCheckpoint.slot)
         }
         Checkpoint memory checkpoint = _unpackCheckpoint(word);
-        assertEq(checkpoint.balance, balance, "Checkpoint.balance packing changed");
-        assertEq(checkpoint.drainRate, drainRate, "Checkpoint.drainRate packing changed");
-        assertEq(checkpoint.modifiedEpoch, modifiedEpoch, "Checkpoint.modifiedEpoch packing changed");
+        require(
+            checkpoint.balance == balance && checkpoint.drainRate == drainRate
+                && checkpoint.modifiedEpoch == modifiedEpoch,
+            CheckpointPackingChanged(word)
+        );
         packedCheckpoints.push(
             _checkpoint(string.concat("packing.checkpoint.", vm.toString(packedCheckpoints.length)), word, checkpoint)
         );
@@ -263,9 +281,10 @@ contract StorageVectorsTest is Test {
             word := sload(packedStream.slot)
         }
         StreamState memory state = _unpackStream(word);
-        assertEq(state.incomingRate, incomingRate, "StreamState.incomingRate packing changed");
-        assertEq(state.settledUpTo, settledUpTo, "StreamState.settledUpTo packing changed");
-        assertEq(state.available, available, "StreamState.available packing changed");
+        require(
+            state.incomingRate == incomingRate && state.settledUpTo == settledUpTo && state.available == available,
+            StreamPackingChanged(word)
+        );
         packedStreams.push(_stream(string.concat("packing.stream.", vm.toString(packedStreams.length)), word, state));
     }
 
