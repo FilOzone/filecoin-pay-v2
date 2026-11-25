@@ -80,7 +80,20 @@ Solidity.
 - The format follows `ScriptBuilder` in [`src/lib/Script.sol`](../../src/lib/Script.sol). The tests check
   the builder and the decoder against [`vectors/script.json`](../../vectors/script.json), which the
   Solidity builder generates.
-- A script with no `setToken` acts on native FIL (`NATIVE_TOKEN`).
+- A script starts on native FIL (`NATIVE_TOKEN`), so one that only uses native FIL needs no `setToken`.
+- `deposit` and `depositTo` are for ERC-20 tokens and revert on native FIL. To deposit native FIL, send
+  it as the value of the `executeScript` transaction. It is credited to the sender's balance before the
+  script runs, so the script can spend it:
+
+  ```ts
+  await walletClient.writeContract({
+    address: filecoinPay,
+    abi: filecoinPayV2,
+    functionName: 'executeScript',
+    args: [createScript().transfer(provider, parseEther('0.25')).build()],
+    value: parseEther('1'),
+  })
+  ```
 - Rail ops (`increaseRate`, `decreaseRate`, `setRate`, `disburseAll`, `disburse`, `lock`, `unlock`,
   `setAvailable`, `terminateRail`, `terminateRailBy`) act on the rail named by the last `setRail` or
   `createRail`.

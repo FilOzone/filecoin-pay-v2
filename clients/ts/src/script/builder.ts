@@ -37,7 +37,9 @@ export interface ScriptBuilder {
   /**
    * Selects the token the ops that follow act on.
    *
-   * @param token - The ERC-20 address, or `NATIVE_TOKEN` for native FIL.
+   * Scripts use native FIL by default, so you only need `setToken` to use a different token.
+   *
+   * @param token - The ERC-20 address, or `NATIVE_TOKEN` to switch back to native FIL.
    */
   setToken(token: Address): ScriptBuilder
   /**
@@ -83,11 +85,20 @@ export interface ScriptBuilder {
   settleRail(from: Address, recipient: Address, nonce: bigint, operator: Address): ScriptBuilder
   /** Withdraws `amount` (`uint128`) of the token from the current account's balance to its own address. */
   withdraw(amount: bigint): ScriptBuilder
-  /** Deposits `amount` (`uint128`) of the token from the current account's address into its balance. */
+  /**
+   * Deposits `amount` (`uint128`) of the token from the current account's address into its balance.
+   *
+   * For ERC-20 tokens only: it reverts on native FIL. To deposit native FIL, send it as the value of the
+   * `executeScript` transaction, which is credited to the sender's balance before the script runs.
+   */
   deposit(amount: bigint): ScriptBuilder
   /** Withdraws `amount` (`uint128`) of the token from the current account's balance to `recipient`'s address. */
   withdrawTo(amount: bigint, recipient: Address): ScriptBuilder
-  /** Deposits `amount` (`uint128`) of the token from the current account's address into `recipient`'s balance. */
+  /**
+   * Deposits `amount` (`uint128`) of the token from the current account's address into `recipient`'s balance.
+   *
+   * For ERC-20 tokens only: it reverts on native FIL, as `deposit` does.
+   */
   depositTo(amount: bigint, recipient: Address): ScriptBuilder
   /** Moves `amount` (`uint128`) of the token from the current account's balance to `recipient`'s. */
   transfer(recipient: Address, amount: bigint): ScriptBuilder
