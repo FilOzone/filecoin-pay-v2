@@ -68,6 +68,12 @@ RAIL_RATE_DELTA = 25
 RAIL_RATE_FINAL = 10
 # the rail the external-entry-point steps operate on
 RAIL_NONCE = 0
+# the first sale takes half the lot, so the second is priced against a memory above the balance
+AUCTION_LOT = 200
+AUCTION_BITE = 100
+# both bites ask the curve for under 200 attoFIL, and the buyer pays what it offers
+AUCTION_OFFER = 10**4
+AUCTION_BUDGET = 10**6
 # the rails sequence ends on a terminated RAIL_NONCE, so the script creates a rail that never existed
 SCRIPT_RAIL_NONCE = 1
 # the operator-side terminate ends a rail of its own, so it opens one no other step holds
@@ -309,8 +315,11 @@ class Runner:
             "deploy MockERC20", self.operator, creation_code=artifact_bytecode("MockERC20")
         )["contractAddress"]
         self.token_id = str(int(self.token, 16))
+        # the constructor creates it and keeps the address private, so derive it from the nonce
+        self.auction = self.cast("compute-address", self.pay, "--nonce", "1")
         self.result["configuration"]["filecoinPay"] = self.pay
         self.result["configuration"]["mockERC20"] = self.token
+        self.result["configuration"]["auction"] = self.auction
 
     def erc20_setup(self) -> None:
         total = str(TOKEN_MINT)
@@ -505,7 +514,28 @@ class Runner:
     def sequences(self) -> dict[str, list[dict[str, Any]]]:
         """Ordered operations per scenario; each step's predecessors are its prerequisites."""
         rail = [self.alice, self.bob, str(RAIL_NONCE), str(NATIVE_TOKEN)]
+        auction_bite = [self.token, str(AUCTION_BITE), str(AUCTION_OFFER)]
         return {
+            "auction": [
+                # the auction pulls the payment itself, so the buyer grants it and funds the grant
+                {"name": "setOperator(auction)", "sender": self.alice,
+                 "signature": "setOperator(address,bool)", "arguments": [self.auction, "true"]},
+                {"name": "deposit (native)", "sender": self.alice,
+                 "signature": "deposit()", "value": AUCTION_BUDGET},
+                # how fees reach the auction: a credit it never asked for
+                {"name": "depositTo (lot)", "sender": self.bob,
+                 "signature": "depositTo(address,address,uint256)",
+                 "arguments": [self.token, self.auction, str(AUCTION_LOT)]},
+                # an unpriced token takes the lot from the balance, skipping the decay and the memory
+                {"name": "accept (first sale)", "sender": self.alice, "to": self.auction,
+                 "signature": "accept(address,uint128,uint128)", "arguments": auction_bite},
+                # and the next sale prices against a remembered lot above the balance, which is
+                # the only path that pays for exp2 twice
+                {"name": "accept (remembered lot)", "sender": self.alice, "to": self.auction,
+                 "signature": "accept(address,uint128,uint128)", "arguments": auction_bite},
+                # last: it sweeps what the sales above paid in, and anyone may call it
+                {"name": "burn", "sender": self.carol, "to": self.auction, "signature": "burn()"},
+            ],
             "erc6909": [
                 {"name": "authorize(bob, ALL)", "sender": self.alice,
                  "signature": "authorize(address,uint256)",
