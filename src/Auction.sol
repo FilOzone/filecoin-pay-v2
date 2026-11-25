@@ -2,10 +2,11 @@
 pragma solidity ^0.8.37;
 
 import {BURN_ADDRESS} from "fvm-solidity/FVMActors.sol";
-import {UNIT, exp2, mulDiv} from "prb-math/Common.sol";
+import {UNIT, mulDiv} from "prb-math/Common.sol";
 
 import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
+import {exp2Q32} from "./lib/Exp2.sol";
 import {TRANSFER, WITHDRAW_TO} from "./lib/Permissions.sol";
 import {newScript} from "./lib/Script.sol";
 
@@ -75,7 +76,7 @@ contract Auction {
 
     /// @return attoFIL per token unit, scaled by UNIT
     function _unitPrice(int256 logPrice) private pure returns (uint256) {
-        return exp2(uint256(logPrice + LOG_BIAS) << 32) >> 64;
+        return exp2Q32(uint256(logPrice + LOG_BIAS)) >> 64;
     }
 
     /// @dev decays only the excess over `available`, so the scale is never below what a buyer could take
@@ -83,7 +84,7 @@ contract Auction {
         if (remembered <= available || elapsed >= SCALE_STALE) {
             return available;
         }
-        return available + (remembered - available) * UNIT / exp2((elapsed << 64) / SCALE_HALF_LIFE);
+        return available + (remembered - available) * UNIT / exp2Q32((elapsed << 32) / SCALE_HALF_LIFE);
     }
 
     function accept(address token, uint128 bite, uint128 price) external {

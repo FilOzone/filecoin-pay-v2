@@ -32,5 +32,6 @@ exclude_lints = [
     "reentrancy-no-eth",
     "require-revert-in-loop",
     "todo-comment",
+    "too-many-digits",
     "unsafe-typecast",
 ]
