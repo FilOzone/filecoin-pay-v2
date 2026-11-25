@@ -1,0 +1,695 @@
+{
+  "cases": [
+    {
+      "name": "empty",
+      "ops": [],
+      "script": "0x"
+    },
+    {
+      "name": "pop",
+      "ops": [
+        {
+          "args": {},
+          "op": "pop"
+        }
+      ],
+      "script": "0x00"
+    },
+    {
+      "name": "push",
+      "ops": [
+        {
+          "args": {},
+          "op": "push"
+        }
+      ],
+      "script": "0x01"
+    },
+    {
+      "name": "reset",
+      "ops": [
+        {
+          "args": {},
+          "op": "reset"
+        }
+      ],
+      "script": "0x02"
+    },
+    {
+      "name": "sudo",
+      "ops": [
+        {
+          "args": {
+            "who": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce"
+          },
+          "op": "sudo"
+        }
+      ],
+      "script": "0x03a11cea11cea11cea11cea11cea11cea11cea11ce"
+    },
+    {
+      "name": "setToken",
+      "ops": [
+        {
+          "args": {
+            "token": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+          },
+          "op": "setToken"
+        }
+      ],
+      "script": "0x04ffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "authorize",
+      "ops": [
+        {
+          "args": {
+            "operator": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "permissions": "255"
+          },
+          "op": "authorize"
+        }
+      ],
+      "script": "0x05a11cea11cea11cea11cea11cea11cea11cea11ceff"
+    },
+    {
+      "name": "setRail",
+      "ops": [
+        {
+          "args": {
+            "from": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            "nonce": "72623859790382856",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "setRail"
+        }
+      ],
+      "script": "0x06ffffffffffffffffffffffffffffffffffffffffb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0102030405060708"
+    },
+    {
+      "name": "createRail",
+      "ops": [
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "18446744073709551615",
+            "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+          },
+          "op": "createRail"
+        }
+      ],
+      "script": "0x07a11cea11cea11cea11cea11cea11cea11cea11ceffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "settleRail",
+      "ops": [
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "18446744073709551615",
+            "operator": "0x2222222222222222222222222222222222222222",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "settleRail"
+        }
+      ],
+      "script": "0x08a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bbffffffffffffffff2222222222222222222222222222222222222222"
+    },
+    {
+      "name": "withdraw",
+      "ops": [
+        {
+          "args": {
+            "amount": "340282366920938463463374607431768211455"
+          },
+          "op": "withdraw"
+        }
+      ],
+      "script": "0x09ffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "deposit",
+      "ops": [
+        {
+          "args": {
+            "amount": "1339673755198158349044581307228491536"
+          },
+          "op": "deposit"
+        }
+      ],
+      "script": "0x0a0102030405060708090a0b0c0d0e0f10"
+    },
+    {
+      "name": "withdrawTo",
+      "ops": [
+        {
+          "args": {
+            "amount": "340282366920938463463374607431768211455",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "withdrawTo"
+        }
+      ],
+      "script": "0x0bffffffffffffffffffffffffffffffffb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb"
+    },
+    {
+      "name": "depositTo",
+      "ops": [
+        {
+          "args": {
+            "amount": "1339673755198158349044581307228491536",
+            "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+          },
+          "op": "depositTo"
+        }
+      ],
+      "script": "0x0c0102030405060708090a0b0c0d0e0f10ffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "transfer",
+      "ops": [
+        {
+          "args": {
+            "amount": "340282366920938463463374607431768211455",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "transfer"
+        }
+      ],
+      "script": "0x0db0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bbffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "transferFrom",
+      "ops": [
+        {
+          "args": {
+            "amount": "1339673755198158349044581307228491536",
+            "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
+          },
+          "op": "transferFrom"
+        }
+      ],
+      "script": "0x0effffffffffffffffffffffffffffffffffffffff0102030405060708090a0b0c0d0e0f10a11cea11cea11cea11cea11cea11cea11cea11ce"
+    },
+    {
+      "name": "transferAll",
+      "ops": [
+        {
+          "args": {
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "transferAll"
+        }
+      ],
+      "script": "0x0fb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb"
+    },
+    {
+      "name": "increaseRate",
+      "ops": [
+        {
+          "args": {
+            "rate": "309485009821345068724781055"
+          },
+          "op": "increaseRate"
+        }
+      ],
+      "script": "0x10ffffffffffffffffffffff"
+    },
+    {
+      "name": "decreaseRate",
+      "ops": [
+        {
+          "args": {
+            "rate": "1218426182456967898401291"
+          },
+          "op": "decreaseRate"
+        }
+      ],
+      "script": "0x110102030405060708090a0b"
+    },
+    {
+      "name": "setRate",
+      "ops": [
+        {
+          "args": {
+            "rate": "309485009821345068724781055"
+          },
+          "op": "setRate"
+        }
+      ],
+      "script": "0x12ffffffffffffffffffffff"
+    },
+    {
+      "name": "disburseAll",
+      "ops": [
+        {
+          "args": {},
+          "op": "disburseAll"
+        }
+      ],
+      "script": "0x13"
+    },
+    {
+      "name": "disburse",
+      "ops": [
+        {
+          "args": {
+            "amount": "340282366920938463463374607431768211455"
+          },
+          "op": "disburse"
+        }
+      ],
+      "script": "0x14ffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "lock",
+      "ops": [
+        {
+          "args": {
+            "amount": "1339673755198158349044581307228491536"
+          },
+          "op": "lock"
+        }
+      ],
+      "script": "0x150102030405060708090a0b0c0d0e0f10"
+    },
+    {
+      "name": "unlock",
+      "ops": [
+        {
+          "args": {
+            "amount": "340282366920938463463374607431768211455"
+          },
+          "op": "unlock"
+        }
+      ],
+      "script": "0x16ffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "setAvailable",
+      "ops": [
+        {
+          "args": {
+            "amount": "1339673755198158349044581307228491536"
+          },
+          "op": "setAvailable"
+        }
+      ],
+      "script": "0x170102030405060708090a0b0c0d0e0f10"
+    },
+    {
+      "name": "terminateRail",
+      "ops": [
+        {
+          "args": {},
+          "op": "terminateRail"
+        }
+      ],
+      "script": "0x18"
+    },
+    {
+      "name": "terminateRailBy",
+      "ops": [
+        {
+          "args": {
+            "operator": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "terminateRailBy"
+        }
+      ],
+      "script": "0x19b0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb"
+    },
+    {
+      "name": "zeroOperands",
+      "ops": [
+        {
+          "args": {
+            "who": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "sudo"
+        },
+        {
+          "args": {
+            "token": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "operator": "0x0000000000000000000000000000000000000000",
+            "permissions": "0"
+          },
+          "op": "authorize"
+        },
+        {
+          "args": {
+            "from": "0x0000000000000000000000000000000000000000",
+            "nonce": "0",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "setRail"
+        },
+        {
+          "args": {
+            "from": "0x0000000000000000000000000000000000000000",
+            "nonce": "0",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "createRail"
+        },
+        {
+          "args": {
+            "from": "0x0000000000000000000000000000000000000000",
+            "nonce": "0",
+            "operator": "0x0000000000000000000000000000000000000000",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "settleRail"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "withdraw"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "deposit"
+        },
+        {
+          "args": {
+            "amount": "0",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "withdrawTo"
+        },
+        {
+          "args": {
+            "amount": "0",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "depositTo"
+        },
+        {
+          "args": {
+            "amount": "0",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "transfer"
+        },
+        {
+          "args": {
+            "amount": "0",
+            "owner": "0x0000000000000000000000000000000000000000",
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "transferFrom"
+        },
+        {
+          "args": {
+            "recipient": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "transferAll"
+        },
+        {
+          "args": {
+            "rate": "0"
+          },
+          "op": "increaseRate"
+        },
+        {
+          "args": {
+            "rate": "0"
+          },
+          "op": "decreaseRate"
+        },
+        {
+          "args": {
+            "rate": "0"
+          },
+          "op": "setRate"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "disburse"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "lock"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "unlock"
+        },
+        {
+          "args": {
+            "amount": "0"
+          },
+          "op": "setAvailable"
+        },
+        {
+          "args": {
+            "operator": "0x0000000000000000000000000000000000000000"
+          },
+          "op": "terminateRailBy"
+        }
+      ],
+      "script": "0x03000000000000000000000000000000000000000004000000000000000000000000000000000000000005000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000a000000000000000000000000000000000b0000000000000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000000000000d0000000000000000000000000000000000000000000000000000000000000000000000000e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f00000000000000000000000000000000000000001000000000000000000000001100000000000000000000001200000000000000000000001400000000000000000000000000000000150000000000000000000000000000000016000000000000000000000000000000001700000000000000000000000000000000190000000000000000000000000000000000000000"
+    },
+    {
+      "name": "depositAndAuthorize",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "amount": "100000000000000000000"
+          },
+          "op": "deposit"
+        },
+        {
+          "args": {
+            "operator": "0x2222222222222222222222222222222222222222",
+            "permissions": "8"
+          },
+          "op": "authorize"
+        }
+      ],
+      "script": "0x0411111111111111111111111111111111111111110a00000000000000056bc75e2d6310000005222222222222222222222222222222222222222208"
+    },
+    {
+      "name": "createAndFundRail",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "9223372036854775809",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "createRail"
+        },
+        {
+          "args": {
+            "rate": "1000"
+          },
+          "op": "setRate"
+        },
+        {
+          "args": {
+            "amount": "500000"
+          },
+          "op": "lock"
+        }
+      ],
+      "script": "0x04111111111111111111111111111111111111111107a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb80000000000000011200000000000000000003e8150000000000000000000000000007a120"
+    },
+    {
+      "name": "createThreeRails",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "9223372036854775815",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "createRail"
+        },
+        {
+          "args": {
+            "amount": "500000000000000000"
+          },
+          "op": "lock"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "7",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "createRail"
+        },
+        {
+          "args": {
+            "amount": "1000000000000000000"
+          },
+          "op": "lock"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "4611686018427387911",
+            "recipient": "0xCA401ca401Ca401CA401CA401cA401CA401ca401"
+          },
+          "op": "createRail"
+        },
+        {
+          "args": {
+            "amount": "300000000000000000"
+          },
+          "op": "lock"
+        }
+      ],
+      "script": "0x04111111111111111111111111111111111111111107a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb800000000000000715000000000000000006f05b59d3b2000007a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb00000000000000071500000000000000000de0b6b3a764000007a11cea11cea11cea11cea11cea11cea11cea11ceca401ca401ca401ca401ca401ca401ca401ca40140000000000000071500000000000000000429d069189e0000"
+    },
+    {
+      "name": "settleAndWithdraw",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "1",
+            "operator": "0x2222222222222222222222222222222222222222",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "settleRail"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "2",
+            "operator": "0x2222222222222222222222222222222222222222",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "settleRail"
+        },
+        {
+          "args": {
+            "from": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            "nonce": "9223372036854775811",
+            "operator": "0x2222222222222222222222222222222222222222",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "settleRail"
+        },
+        {
+          "args": {
+            "amount": "42000000000000000000",
+            "recipient": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce"
+          },
+          "op": "withdrawTo"
+        }
+      ],
+      "script": "0x04111111111111111111111111111111111111111108a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0000000000000001222222222222222222222222222222222222222208a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0000000000000002222222222222222222222222222222222222222208ffffffffffffffffffffffffffffffffffffffffb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb800000000000000322222222222222222222222222222222222222220b000000000000000246ddf97976680000a11cea11cea11cea11cea11cea11cea11cea11ce"
+    },
+    {
+      "name": "payerTerminate",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {
+            "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
+            "nonce": "9223372036854775809",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "setRail"
+        },
+        {
+          "args": {
+            "operator": "0x2222222222222222222222222222222222222222"
+          },
+          "op": "terminateRailBy"
+        }
+      ],
+      "script": "0x04111111111111111111111111111111111111111106a11cea11cea11cea11cea11cea11cea11cea11ceb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb8000000000000001192222222222222222222222222222222222222222"
+    },
+    {
+      "name": "sudoTransfer",
+      "ops": [
+        {
+          "args": {
+            "token": "0x1111111111111111111111111111111111111111"
+          },
+          "op": "setToken"
+        },
+        {
+          "args": {},
+          "op": "push"
+        },
+        {
+          "args": {
+            "who": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce"
+          },
+          "op": "sudo"
+        },
+        {
+          "args": {
+            "amount": "5",
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "transfer"
+        },
+        {
+          "args": {},
+          "op": "pop"
+        },
+        {
+          "args": {},
+          "op": "reset"
+        },
+        {
+          "args": {
+            "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
+          },
+          "op": "transferAll"
+        }
+      ],
+      "script": "0x0411111111111111111111111111111111111111110103a11cea11cea11cea11cea11cea11cea11cea11ce0db0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0000000000000000000000000000000500020fb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb0bb"
+    }
+  ]
+}

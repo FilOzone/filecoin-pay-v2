@@ -11,6 +11,7 @@ optimizer_runs = 200
 # FVM rebuilds its jumpdest table every call, walking the CBOR trailer as if it were opcodes
 bytecode_hash = "none"
 cbor_metadata = false
+fs_permissions = [{ access = "read-write", path = "./vectors" }]
 
 remappings = [
     'forge-std/=lib/forge-std/src/',
