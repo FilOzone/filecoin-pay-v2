@@ -2,7 +2,7 @@
 pragma solidity ^0.8.37;
 
 import {BURN_ADDRESS} from "fvm-solidity/FVMActors.sol";
-import {exp2, mulDiv} from "prb-math/Common.sol";
+import {UNIT, exp2, mulDiv} from "prb-math/Common.sol";
 
 import {IFilecoinPayV2} from "./interfaces/IFilecoinPayV2.sol";
 import {IWFIL} from "./interfaces/IWFIL.sol";
@@ -10,8 +10,15 @@ import {TRANSFER, WITHDRAW_TO} from "./lib/Permissions.sol";
 import {newScript} from "./lib/Script.sol";
 
 uint40 constant NEVER = type(uint40).max;
-uint128 constant INITIAL_PRICE = 1 ether;
 uint256 constant HALVING_INTERVAL = 60 * 24 * 7; // 3.5 days of epochs
+uint256 constant SCALE_HALF_LIFE = 1024; // ~8.5h at 30s epochs
+uint256 constant SCALE_STALE = SCALE_HALF_LIFE * 64; // leaves 2^-64 of the memory; exp2 leaves its domain past 191
+
+int256 constant LOG_ONE = int256(1) << 32; // one doubling in Q32.32
+int256 constant LOG_BIAS = int256(64) << 32; // exp2 takes unsigned, so -LOG_BIAS is also the price floor
+int256 constant LOG_MAX = int256(126) << 32; // stored ceiling; +1 doubling stays inside exp2's domain
+int256 constant INITIAL_LOG_PRICE = 0; // 1 attoFIL per token unit, then discovered by decay
+uint256 constant LN2 = 693147180559945309; // ln2 * UNIT, so dividing by it also undoes exp2 scaling
 
 contract Auction {
     IFilecoinPayV2 private immutable PAYMENTS;
@@ -19,8 +26,9 @@ contract Auction {
     uint256 private constant NATIVE_TOKEN = 0;
 
     struct DutchAuction {
-        uint216 price; // Q152.64 TODO consider sqrt pricing
-        uint40 begin;
+        int64 logPrice; // Q32.32 log2(attoFIL per token unit)
+        uint128 scale; // quantity whose purchase doubles the price
+        uint40 lastEpoch;
     }
 
     mapping(address token => DutchAuction) public auctionOf;
@@ -28,8 +36,8 @@ contract Auction {
     constructor(IWFIL wfil) {
         PAYMENTS = IFilecoinPayV2(msg.sender);
         WFIL = wfil;
-        auctionOf[address(0)].begin = NEVER;
-        auctionOf[address(wfil)].begin = NEVER;
+        auctionOf[address(0)].lastEpoch = NEVER;
+        auctionOf[address(wfil)].lastEpoch = NEVER;
     }
 
     receive() external payable {}
@@ -49,30 +57,54 @@ contract Auction {
         );
     }
 
-    event Auctioned(address indexed token, uint128 bite, uint128 required, uint128 paid);
-    error Insufficient(uint128 required);
+    event Auctioned(address indexed token, uint128 bite, uint128 valuation, uint128 paid);
+
+    error Insufficient(uint256 valuation);
+
+    /// @return attoFIL per token unit, scaled by UNIT
+    function _unitPrice(int256 logPrice) private pure returns (uint256) {
+        return exp2(uint256(logPrice + LOG_BIAS) << 32) >> 64;
+    }
+
+    /// @dev decays only the excess over `available`, so the scale is never below what a buyer could take
+    function _scaleOf(uint256 remembered, uint256 available, uint256 elapsed) private pure returns (uint256) {
+        if (remembered <= available || elapsed >= SCALE_STALE) {
+            return available;
+        }
+        return available + (remembered - available) * UNIT / exp2((elapsed << 64) / SCALE_HALF_LIFE);
+    }
 
     function accept(address token, uint128 bite, uint128 price) external {
         DutchAuction memory auction = auctionOf[token];
-        uint128 required;
-        if (auction.begin == 0) {
-            required = INITIAL_PRICE;
-            auction.price = uint216((uint256(INITIAL_PRICE) << 66) / uint256(bite));
-        } else {
-            uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
-            uint256 elapsed;
-            unchecked {
-                elapsed = ((block.number - uint256(auction.begin)) << 64) / HALVING_INTERVAL;
-            }
-            required = uint128(((uint256(auction.price) * 10 ** 18) * uint256(bite) / exp2(elapsed)) >> 64);
+        uint256 available = PAYMENTS.balanceOf(address(this), uint256(uint160(token)));
 
-            auction.price =
-                uint216(mulDiv(uint256(required) << 64, available + 3 * uint256(bite), uint256(bite) * available));
+        int256 logPrice = INITIAL_LOG_PRICE;
+        uint256 scale;
+        if (auction.lastEpoch == 0) {
+            scale = available;
+        } else {
+            uint256 elapsed = block.number - uint256(auction.lastEpoch); // NEVER underflows, blocking the token
+            logPrice = int256(auction.logPrice) - int256((elapsed << 32) / HALVING_INTERVAL);
+            if (logPrice < -LOG_BIAS) {
+                logPrice = -LOG_BIAS;
+            }
+            scale = _scaleOf(uint256(auction.scale), available, elapsed);
         }
-        require(price >= required, Insufficient(required));
-        auction.begin = uint40(block.number);
+
+        // a bite that can settle is at most `available` <= `scale`, so one purchase is at most one
+        // doubling, which is what holds `logPrice + doublings` inside exp2's domain at LOG_MAX
+        int256 doublings = int256((uint256(bite) << 32) / scale);
+        // the integral of 2^(logPrice + q/scale) over the bite, so splitting a purchase in two
+        // costs what making it at once would
+        uint256 valuation = mulDiv(scale, _unitPrice(logPrice + doublings) - _unitPrice(logPrice), LN2);
+        require(price > valuation, Insufficient(valuation)); // strict, so every bite costs at least 1
+
+        int256 next = logPrice + doublings;
+        auction.logPrice = int64(next > LOG_MAX ? LOG_MAX : next);
+        auction.scale = uint128(scale);
+        auction.lastEpoch = uint40(block.number);
         auctionOf[token] = auction;
-        emit Auctioned(token, bite, required, price);
+        emit Auctioned(token, bite, uint128(valuation), price);
 
         PAYMENTS.executeScript(
             TRANSFER,

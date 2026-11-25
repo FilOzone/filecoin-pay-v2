@@ -2,13 +2,15 @@
 pragma solidity ^0.8.37;
 
 import {WFIL} from "fevmate/token/WFIL.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {stdError} from "forge-std/StdError.sol";
 import {BURN_ADDRESS} from "fvm-solidity/FVMActors.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {IERC6909} from "forge-std/interfaces/IERC6909.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 
-import {Auction, HALVING_INTERVAL, INITIAL_PRICE} from "../src/Auction.sol";
+import {Auction, HALVING_INTERVAL, LOG_BIAS, LOG_MAX, LOG_ONE, SCALE_HALF_LIFE} from "../src/Auction.sol";
 import {FilecoinPayV2} from "../src/FilecoinPayV2.sol";
 import {TRANSFER} from "../src/lib/Permissions.sol";
 import {FilecoinPayTest} from "./FilecoinPayTest.sol";
@@ -93,162 +95,303 @@ contract AuctionTest is FilecoinPayTest {
     }
 
     function testAcceptNativeOrWrappedReverts() public {
-        depositNative(alice, alice, INITIAL_PRICE);
+        depositNative(alice, alice, 1 ether);
         depositWrapped(alice, address(auction), 1 ether);
         depositNative(alice, address(auction), 1 ether);
 
         vm.expectRevert(); // TODO: specific error
-        auction.accept(address(0), 1 ether, INITIAL_PRICE);
+        auction.accept(address(0), 1 ether, 1 ether);
         vm.expectRevert(); // TODO: specific error
-        auction.accept(address(wfil), 1 ether, INITIAL_PRICE);
+        auction.accept(address(wfil), 1 ether, 1 ether);
         vm.expectRevert(); // TODO: specific error
-        auction.accept(address(0), 1 ether, INITIAL_PRICE);
+        auction.accept(address(0), 1 ether, 1 ether);
         vm.expectRevert(); // TODO: specific error
-        auction.accept(address(wfil), 1 ether, INITIAL_PRICE);
+        auction.accept(address(wfil), 1 ether, 1 ether);
     }
 
-    function testRateInitialIncreaseDecrease() public {
-        depositNative(alice, alice, INITIAL_PRICE);
-        mockAndDepositTo(usdfc, alice, address(auction), 16 ether);
+    uint256 constant WHOLE_OF_16 = 23083120654223414531; // 16 ether / ln2
 
-        vm.expectEmit(address(payments));
-        emit IERC6909.Approval(alice, address(auction), NATIVE_TOKEN, INITIAL_PRICE);
-        vm.prank(alice);
-        payments.approve(address(auction), NATIVE_TOKEN, INITIAL_PRICE);
+    function usdfcId() internal view returns (uint256) {
+        return uint256(uint160(address(usdfc)));
+    }
 
-        // initial auction settles at .0625
-        vm.prank(alice);
-        auction.accept(address(usdfc), 16 ether, INITIAL_PRICE);
+    function logPriceOf(address t) internal view returns (int64 l) {
+        (l,,) = auction.auctionOf(t);
+    }
 
-        uint256 tokenId = uint256(uint160(address(usdfc)));
+    function scaleOf(address t) internal view returns (uint128 s) {
+        (, s,) = auction.auctionOf(t);
+    }
 
-        assertEq(payments.balanceOf(address(auction), NATIVE_TOKEN), INITIAL_PRICE);
-        assertEq(payments.balanceOf(address(auction), tokenId), 0);
-        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
-        assertEq(payments.balanceOf(alice, tokenId), 16 ether);
-
-        // start price is .25
-        Auction.DutchAuction memory auctionInfo;
-        (auctionInfo.price, auctionInfo.begin) = auction.auctionOf(address(usdfc));
-        assertEq(uint256(auctionInfo.begin), vm.getBlockNumber());
-        assertEq(uint256(auctionInfo.price), 1 << 62);
-
-        mockAndDepositTo(usdfc, alice, address(auction), 160 ether);
-        depositNative(alice, alice, 20 ether);
-
-        vm.expectEmit(address(payments));
-        emit FilecoinPayV2.Authorized(alice, address(auction), TRANSFER);
-        vm.expectEmit(address(payments));
-        emit IERC6909.OperatorSet(alice, address(auction), true);
+    function fund(uint256 nativeAmount, uint256 tokenAmount) internal {
+        if (tokenAmount > 0) {
+            usdfc.mint(alice, tokenAmount);
+            vm.prank(alice);
+            usdfc.approve(address(payments), tokenAmount);
+            vm.prank(alice);
+            payments.depositTo(address(usdfc), address(auction), tokenAmount);
+        }
+        if (nativeAmount > 0) {
+            vm.deal(alice, nativeAmount);
+            vm.prank(alice);
+            payments.depositTo{value: nativeAmount}(alice);
+        }
         vm.prank(alice);
         payments.setOperator(address(auction), true);
+    }
 
-        vm.expectRevert(abi.encodeWithSelector(Auction.Insufficient.selector, 20 ether));
+    function testFirstAuctionPricesWholeBalanceAtOneDoubling() public {
+        fund(WHOLE_OF_16 + 1, 16 ether);
+
+        vm.expectRevert(abi.encodeWithSelector(Auction.Insufficient.selector, WHOLE_OF_16));
         vm.prank(alice);
-        auction.accept(address(usdfc), 80 ether, 20 ether - 1);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16));
 
         vm.expectEmit(address(auction));
-        emit Auction.Auctioned(address(usdfc), 80 ether, 20 ether, 20 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 20 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 80 ether);
+        emit Auction.Auctioned(address(usdfc), 16 ether, uint128(WHOLE_OF_16), uint128(WHOLE_OF_16 + 1));
         vm.prank(alice);
-        auction.accept(address(usdfc), 80 ether, 20 ether);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
 
-        assertEq(payments.balanceOf(alice, tokenId), 96 ether);
-        assertEq(payments.balanceOf(address(auction), tokenId), 80 ether);
+        assertEq(logPriceOf(address(usdfc)), int64(LOG_ONE));
+        assertEq(uint256(scaleOf(address(usdfc))), 16 ether);
+        assertEq(payments.balanceOf(alice, usdfcId()), 16 ether);
+    }
 
-        // start price is .625
-        (auctionInfo.price, auctionInfo.begin) = auction.auctionOf(address(usdfc));
-        assertEq(uint256(auctionInfo.begin), vm.getBlockNumber());
-        assertEq(uint256(auctionInfo.price), 5 << 61);
-
-        mockAndDepositTo(usdfc, alice, address(auction), 20 ether);
-        assertEq(payments.balanceOf(address(auction), tokenId), 100 ether);
-
-        depositNative(alice, alice, 50 ether);
-
-        vm.expectRevert(abi.encodeWithSelector(Auction.Insufficient.selector, 62.5 ether));
+    function testPriceHalvesOverHalvingInterval() public {
+        fund(WHOLE_OF_16 + 1, 16 ether);
         vm.prank(alice);
-        auction.accept(address(usdfc), 100 ether, 50 ether);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
 
         vm.roll(vm.getBlockNumber() + HALVING_INTERVAL);
+        fund(WHOLE_OF_16 + 1, 16 ether);
 
+        // one halving exactly undoes the doubling the first sale produced
         vm.expectEmit(address(auction));
-        emit Auction.Auctioned(address(usdfc), 100 ether, 31.25 ether, 50 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 50 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 100 ether);
+        emit Auction.Auctioned(address(usdfc), 16 ether, uint128(WHOLE_OF_16), uint128(WHOLE_OF_16 + 1));
         vm.prank(alice);
-        auction.accept(address(usdfc), 100 ether, 50 ether);
-
-        // start price is 1.25
-        (auctionInfo.price, auctionInfo.begin) = auction.auctionOf(address(usdfc));
-        assertEq(uint256(auctionInfo.begin), vm.getBlockNumber());
-        assertEq(uint256(auctionInfo.price), 5 << 62);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
+        assertEq(logPriceOf(address(usdfc)), int64(LOG_ONE));
     }
 
-    function testRatePrecisionWithRemainder() public {
-        depositNative(alice, alice, INITIAL_PRICE);
-        mockAndDepositTo(usdfc, alice, address(auction), 16 ether + 13);
+    function testSplittingAPurchaseCostsTheSame() public {
+        fund(WHOLE_OF_16 * 2, 16 ether);
 
+        vm.recordLogs();
         vm.prank(alice);
-        payments.approve(address(auction), NATIVE_TOKEN, INITIAL_PRICE);
+        auction.accept(address(usdfc), 8 ether, uint128(WHOLE_OF_16));
         vm.prank(alice);
-        auction.accept(address(usdfc), 16 ether, INITIAL_PRICE);
+        auction.accept(address(usdfc), 8 ether, uint128(WHOLE_OF_16));
 
-        uint256 tokenId = uint256(uint160(address(usdfc)));
-        assertEq(payments.balanceOf(address(auction), tokenId), 13);
-
-        depositNative(alice, alice, 3);
-        vm.prank(alice);
-        payments.setOperator(address(auction), true);
-
-        // 13 wei at .25 each: required = 3, and bite == available scales the discarded remainder by 4
-        vm.expectEmit(address(auction));
-        emit Auction.Auctioned(address(usdfc), 13, 3, 3);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 3);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 13);
-        vm.prank(alice);
-        auction.accept(address(usdfc), 13, 3);
-
-        Auction.DutchAuction memory auctionInfo;
-        (auctionInfo.price,) = auction.auctionOf(address(usdfc));
-        assertEq(uint256(auctionInfo.price), uint256(3) * (4 << 64) / 13);
+        uint256 split;
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == Auction.Auctioned.selector) {
+                (, uint128 valuation,) = abi.decode(logs[i].data, (uint128, uint128, uint128));
+                split += valuation;
+            }
+        }
+        assertApproxEqAbs(split, WHOLE_OF_16, 2);
+        assertEq(logPriceOf(address(usdfc)), int64(LOG_ONE));
     }
 
-    function testRatePrecisionAtHighUnitPrice() public {
-        depositNative(alice, alice, INITIAL_PRICE);
-        mockAndDepositTo(usdfc, alice, address(auction), 14);
+    function testOneWeiAcceptsCannotRatchet() public {
+        fund(WHOLE_OF_16 + 1, 16 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
+        int64 before = logPriceOf(address(usdfc));
+
+        for (uint256 i = 0; i < 64; i++) {
+            fund(1 ether, 1);
+            vm.prank(alice);
+            auction.accept(address(usdfc), 1, 1 ether);
+        }
+
+        // the old rule multiplied the price by 4 per accept; impact is now proportional to quantity
+        assertLt(logPriceOf(address(usdfc)) - before, int64(LOG_ONE / 1000));
+    }
+
+    function testPriceCannotBeZeroed() public {
+        fund(WHOLE_OF_16 + 1, 16 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
+
+        fund(1 ether, 1);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 1, 1 ether);
+
+        fund(0, 100 ether);
+        assertGt(valuationOf(100 ether), WHOLE_OF_16);
+    }
+
+    function testBitePastTheBalanceAlwaysReverts() public {
+        fund(type(uint128).max, 16 ether);
+
+        // one wei over is still one doubling, so it prices normally and only the transfer objects
+        vm.expectRevert(FilecoinPayV2.InsufficientBalance.selector);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether + 1, uint128(WHOLE_OF_16 + 1));
+
+        // 64 doublings stays in exp2's domain but quotes past what uint128 can ever pay
+        vm.expectRevert(abi.encodeWithSelector(Auction.Insufficient.selector, 425808419131018319969043854928866432403));
+        vm.prank(alice);
+        auction.accept(address(usdfc), 64 * 16 ether, type(uint128).max);
+
+        // past 127 doublings the quote leaves exp2's domain and underflows before the transfer
+        vm.expectRevert(stdError.arithmeticError);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 128 * 16 ether, type(uint128).max);
+    }
+
+    function testEmptyBiteIsHarmless() public {
+        // no balance and no memory leaves no scale to price against
+        vm.expectRevert(stdError.divisionError);
+        auction.accept(address(token), 0, 1 ether);
+
+        // otherwise it quotes nothing, and the strict check still charges the caller
+        fund(1, 16 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 0, 1);
+        assertEq(payments.balanceOf(alice, NATIVE_TOKEN), 0);
+        assertEq(logPriceOf(address(usdfc)), 0);
+    }
+
+    /// @dev the auction's valuation of `bite`, read by offering nothing; reverts before touching state
+    function valuationOf(uint128 bite) internal returns (uint256) {
+        vm.prank(alice);
+        try auction.accept(address(usdfc), bite, 0) {
+            revert("expected Insufficient");
+        } catch (bytes memory err) {
+            assertEq(bytes4(err), Auction.Insufficient.selector);
+            uint256 valuation;
+            assembly {
+                valuation := mload(add(err, 0x24))
+            }
+            return valuation;
+        }
+    }
+
+    function poke(int64 logPrice, uint128 scale) internal {
+        vm.store(
+            address(auction),
+            keccak256(abi.encode(address(usdfc), uint256(0))),
+            bytes32(uint256(uint64(logPrice)) | (uint256(scale) << 64) | (uint256(block.number) << 192))
+        );
+    }
+
+    /// decay floors `logPrice` at -LOG_BIAS, below which exp2 would read a wrapped operand
+    function decayToFloor() internal {
+        fund(WHOLE_OF_16 + 1, 16 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
+        vm.roll(vm.getBlockNumber() + 70 * HALVING_INTERVAL);
+    }
+
+    function testFlooredPriceIsNeverFree() public {
+        decayToFloor();
+        fund(1, 16 ether);
+
+        // 1e18 * 2^logPrice truncates to zero here, so the quote is zero but the sale is not free
+        assertEq(valuationOf(16 ether), 0);
+        vm.expectRevert(abi.encodeWithSelector(Auction.Insufficient.selector, 0));
+        vm.prank(alice);
+        auction.accept(address(usdfc), 16 ether, 0);
 
         vm.prank(alice);
-        payments.approve(address(auction), NATIVE_TOKEN, INITIAL_PRICE);
+        auction.accept(address(usdfc), 16 ether, 1);
+        assertEq(logPriceOf(address(usdfc)), int64(-LOG_BIAS + LOG_ONE));
+    }
+
+    function testFlooredPriceRecoversOnPurchases() public {
+        decayToFloor();
+
+        // each clear is one doubling off the floor, so a quote reappears without any demand signal lost
+        for (uint256 i = 0; i < 4; i++) {
+            fund(1, 16 ether);
+            vm.prank(alice);
+            auction.accept(address(usdfc), 16 ether, 1);
+        }
+        assertEq(logPriceOf(address(usdfc)), int64(-LOG_BIAS + 4 * LOG_ONE));
+
+        fund(0, 16 ether);
+        assertEq(valuationOf(16 ether), 23);
+    }
+
+    /// LOG_MAX is the lowest of the three ceilings: exp2's domain binds before uint128 payment or int64 storage
+    function testCappedPriceStaysInsideExp2Domain() public {
+        fund(0, 1);
+        poke(int64(LOG_MAX), 1);
+
+        // one unit is the whole scale, so this is the full doubling that takes exp2 to 191
+        uint256 valuation = valuationOf(1);
+        assertEq(valuation, 122730920814699141510468829034012455559); // 2^126 / ln2, a third of uint128
+        assertLt(valuation, type(uint128).max);
+
+        fund(valuation + 1, 0);
         vm.prank(alice);
-        auction.accept(address(usdfc), 1, INITIAL_PRICE);
+        auction.accept(address(usdfc), 1, uint128(valuation + 1));
+        assertEq(logPriceOf(address(usdfc)), int64(LOG_MAX));
+    }
 
-        uint256 tokenId = uint256(uint160(address(usdfc)));
-        assertEq(payments.balanceOf(address(auction), tokenId), 13);
-
-        depositNative(alice, alice, 4 ether);
+    /// @dev nothing lowers the stored lot: it is floored at `available`, which only a donation moves,
+    /// and the decay term is the one input a griefer cannot buy
+    function testGrieferCannotLowerTheLot() public {
+        fund(WHOLE_OF_16 + 1, 16 ether);
         vm.prank(alice);
-        payments.setOperator(address(auction), true);
+        auction.accept(address(usdfc), 16 ether, uint128(WHOLE_OF_16 + 1));
+        assertEq(scaleOf(address(usdfc)), 16 ether);
+        uint256 snap = vm.snapshotState();
 
-        // 1 wei of 13 at 4 ether each: the remainder dropped by (3 << 64) / 13 scales by required, not by 4
-        vm.expectEmit(address(auction));
-        emit Auction.Auctioned(address(usdfc), 1, 4 ether, 4 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), alice, address(auction), NATIVE_TOKEN, 4 ether);
-        vm.expectEmit(address(payments));
-        emit IERC6909.Transfer(address(auction), address(auction), alice, tokenId, 1);
+        // left alone, one half-life halves the memory
+        vm.roll(vm.getBlockNumber() + SCALE_HALF_LIFE);
+        fund(1, 0);
         vm.prank(alice);
-        auction.accept(address(usdfc), 1, 4 ether);
+        auction.accept(address(usdfc), 0, 1);
+        uint256 control = scaleOf(address(usdfc));
+        assertEq(control, 8 ether);
 
-        Auction.DutchAuction memory auctionInfo;
-        (auctionInfo.price,) = auction.auctionOf(address(usdfc));
-        assertEq(uint256(auctionInfo.price), ((uint256(4 ether) << 64) * (13 + 3)) / 13);
+        vm.revertToState(snap);
+
+        // the cheapest attack is to compound that decay, one empty attoFIL accept per epoch
+        fund(SCALE_HALF_LIFE, 0);
+        for (uint256 i = 0; i < SCALE_HALF_LIFE; i++) {
+            vm.roll(vm.getBlockNumber() + 1);
+            vm.prank(alice);
+            auction.accept(address(usdfc), 0, 1);
+        }
+        uint256 attacked = scaleOf(address(usdfc));
+
+        // 1024 accepts land 5,197 wei above the control: exp2 rounds down, so compounding the
+        // decay in steps loses less than applying it once, and the griefer pays to raise the lot
+        assertGe(attacked, control);
+        assertLt(attacked - control, 1e5);
+    }
+
+    function testGrieferRaisingTheLotCostsMoreThanItSaves() public {
+        fund(2 ether, 1 ether);
+        uint256 first = valuationOf(1 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 1 ether, uint128(first + 1));
+        assertEq(scaleOf(address(usdfc)), 1 ether);
+
+        // one halving undoes the doubling that sale produced, so a unit is back to 1 attoFIL
+        vm.roll(vm.getBlockNumber() + HALVING_INTERVAL);
+        fund(0, 1 ether);
+        uint256 unmanipulated = valuationOf(1 ether);
+        assertEq(unmanipulated, 1442695040888963408); // 1 ether / ln2
+
+        // the cheapest raise: donate, then commit the inflated balance with an empty accept
+        fund(1, 15 ether);
+        vm.prank(alice);
+        auction.accept(address(usdfc), 0, 1);
+        assertEq(scaleOf(address(usdfc)), 16 ether);
+
+        // a 16x lot caps the saving at what convexity was worth, 1 - ln2 of the clear
+        uint256 saved = unmanipulated - valuationOf(1 ether);
+        assertEq(saved, 420717979298133336);
+
+        // the donation is 15 ether at the auction's own unit price, and it is unwithdrawable:
+        // forfeiting gifts the protocol 35 clears worth of saving, buying it back costs 51
+        assertGt(15 ether, saved * 35);
+        assertGt(valuationOf(16 ether) - unmanipulated, saved * 51);
     }
 }
