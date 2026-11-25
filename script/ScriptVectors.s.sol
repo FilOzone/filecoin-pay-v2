@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 pragma solidity ^0.8.37;
 
-import {Test} from "forge-std/Test.sol";
+import {Script} from "forge-std/Script.sol";
+import {VmSafe} from "forge-std/Vm.sol";
 
 import {ALL, CREATE_RAIL, NONE} from "../src/lib/Permissions.sol";
 import {FLAG_CALLBACK} from "../src/lib/RailId.sol";
@@ -10,9 +11,13 @@ import {newScript} from "../src/lib/Script.sol";
 import {ScriptReading} from "../src/lib/ScriptReading.sol";
 
 /// @dev writes vectors/script.json, which every client library must reproduce byte for byte
-contract ScriptVectorsTest is Test {
+contract ScriptVectors is Script {
     using ScriptReading for uint256;
     using ScriptReading for bytes;
+
+    error NotDryRun();
+    error TruncatedOp();
+    error UnnamedOp(uint256 op);
 
     string private constant PATH = "vectors/script.json";
 
@@ -66,7 +71,9 @@ contract ScriptVectorsTest is Test {
 
     // the builder writes at the free memory pointer, so nothing may allocate between newScript()
     // and build(): each script is finished in one expression before _case sees it
-    function testWriteVectors() public {
+    function run() public {
+        require(vm.isContext(VmSafe.ForgeContext.ScriptDryRun), NotDryRun());
+
         bytes memory script = newScript().build();
         _case("empty", script);
 
@@ -192,7 +199,7 @@ contract ScriptVectorsTest is Test {
             (op, curr) = _op(curr, string.concat(name, ".", vm.toString(ops.length)));
             ops.push(op);
         }
-        assertEq(curr, end, "truncated op");
+        require(curr == end, TruncatedOp());
         vm.serializeString(name, "name", name);
         vm.serializeBytes(name, "script", script);
         cases.push(vm.serializeString(name, "ops", ops));
@@ -261,7 +268,7 @@ contract ScriptVectorsTest is Test {
             (amount, curr) = curr.nextU128();
             args = _uint(argsKey, "amount", amount);
         }
-        assertNotEq(bytes(names[op]).length, 0, "unnamed op");
+        require(bytes(names[op]).length != 0, UnnamedOp(op));
         vm.serializeString(key, "op", names[op]);
         return (vm.serializeString(key, "args", args), curr);
     }
