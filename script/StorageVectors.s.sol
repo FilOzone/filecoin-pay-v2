@@ -229,7 +229,7 @@ contract StorageVectors is Script {
         vm.serializeAddress(key, "operator", operator);
         vm.serializeBytes32(key, "slot", slot);
         vm.serializeBytes32(key, "word", word);
-        permissions.push(_uint(key, "permissions", uint256(word)));
+        permissions.push(_uint(key, "permissions", abi.encodePacked(uint256(word))));
     }
 
     function _rail(address operator, address from, uint256 token, address recipient, uint64 nonce) internal {
@@ -252,7 +252,7 @@ contract StorageVectors is Script {
         vm.serializeAddress(key, "from", from);
         vm.serializeAddress(key, "token", address(uint160(token)));
         vm.serializeAddress(key, "recipient", recipient);
-        _uint(key, "nonce", nonce);
+        _uint(key, "nonce", abi.encodePacked(nonce));
         vm.serializeBytes32(key, "railId", railId);
         rails.push(_stream(key, word, state));
     }
@@ -293,20 +293,21 @@ contract StorageVectors is Script {
         returns (string memory)
     {
         vm.serializeBytes32(key, "word", word);
-        _uint(key, "balance", checkpoint.balance);
-        _uint(key, "drainRate", checkpoint.drainRate);
-        return _uint(key, "modifiedEpoch", checkpoint.modifiedEpoch);
+        _uint(key, "balance", abi.encodePacked(checkpoint.balance));
+        _uint(key, "drainRate", abi.encodePacked(checkpoint.drainRate));
+        return _uint(key, "modifiedEpoch", abi.encodePacked(checkpoint.modifiedEpoch));
     }
 
     function _stream(string memory key, bytes32 word, StreamState memory state) internal returns (string memory) {
         vm.serializeBytes32(key, "word", word);
-        _uint(key, "incomingRate", state.incomingRate);
-        _uint(key, "settledUpTo", state.settledUpTo);
-        return _uint(key, "available", state.available);
+        _uint(key, "incomingRate", abi.encodePacked(state.incomingRate));
+        _uint(key, "settledUpTo", abi.encodePacked(state.settledUpTo));
+        return _uint(key, "available", abi.encodePacked(state.available));
     }
 
-    /// @dev integers are decimal strings, since they outgrow a JSON number
-    function _uint(string memory key, string memory name, uint256 value) internal returns (string memory) {
-        return vm.serializeString(key, name, vm.toString(value));
+    /// @dev integers are hex padded to the width of their type, which shows the type and lines the
+    /// field up with the raw bytes beside it
+    function _uint(string memory key, string memory name, bytes memory packed) internal returns (string memory) {
+        return vm.serializeBytes(key, name, packed);
     }
 }
