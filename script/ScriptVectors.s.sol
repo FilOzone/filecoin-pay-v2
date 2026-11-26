@@ -225,14 +225,14 @@ contract ScriptVectors is Script {
                 uint256 permissions;
                 (permissions, curr) = curr.nextByte();
                 vm.serializeAddress(argsKey, "operator", who);
-                args = _uint(argsKey, "permissions", abi.encodePacked(uint8(permissions)));
+                args = _hex(argsKey, "permissions", abi.encodePacked(uint8(permissions)));
             } else {
                 address recipient;
                 uint64 nonce;
                 (recipient, nonce, curr) = curr.nextAddressU64();
                 vm.serializeAddress(argsKey, "from", who);
                 vm.serializeAddress(argsKey, "recipient", recipient);
-                args = _uint(argsKey, "nonce", abi.encodePacked(nonce));
+                args = _hex(argsKey, "nonce", abi.encodePacked(nonce));
                 if (op == Ops.SETTLERAIL) {
                     (who, curr) = curr.nextAddress();
                     args = vm.serializeAddress(argsKey, "operator", who);
@@ -240,7 +240,7 @@ contract ScriptVectors is Script {
             }
         } else if (op < Ops.TRANSFER) {
             (amount, curr) = curr.nextU128();
-            args = _uint(argsKey, "amount", abi.encodePacked(amount));
+            args = _hex(argsKey, "amount", abi.encodePacked(amount));
             if (op > Ops.DEPOSIT) {
                 (who, curr) = curr.nextAddress();
                 args = vm.serializeAddress(argsKey, "recipient", who);
@@ -251,7 +251,7 @@ contract ScriptVectors is Script {
         } else if (op < Ops.INCREASERATE) {
             (who, amount, curr) = curr.nextAddressU128();
             vm.serializeAddress(argsKey, "recipient", who);
-            args = _uint(argsKey, "amount", abi.encodePacked(amount));
+            args = _hex(argsKey, "amount", abi.encodePacked(amount));
             if (op == Ops.TRANSFERFROM) {
                 (who, curr) = curr.nextAddress();
                 args = vm.serializeAddress(argsKey, "owner", who);
@@ -259,13 +259,13 @@ contract ScriptVectors is Script {
         } else if (op < Ops.DISBURSEALL) {
             uint88 rate;
             (rate, curr) = curr.nextU88();
-            args = _uint(argsKey, "rate", abi.encodePacked(rate));
+            args = _hex(argsKey, "rate", abi.encodePacked(rate));
         } else if (op == Ops.TERMINATERAILBY) {
             (who, curr) = curr.nextAddress();
             args = vm.serializeAddress(argsKey, "operator", who);
         } else {
             (amount, curr) = curr.nextU128();
-            args = _uint(argsKey, "amount", abi.encodePacked(amount));
+            args = _hex(argsKey, "amount", abi.encodePacked(amount));
         }
         require(bytes(names[op]).length != 0, UnnamedOp(op));
         vm.serializeString(key, "op", names[op]);
@@ -274,7 +274,7 @@ contract ScriptVectors is Script {
 
     /// @dev integers are hex padded to the width of their type, which shows the type and lines the
     /// field up with the raw bytes beside it
-    function _uint(string memory key, string memory name, bytes memory packed) internal returns (string memory) {
+    function _hex(string memory key, string memory name, bytes memory packed) internal returns (string memory) {
         return vm.serializeBytes(key, name, packed);
     }
 }
