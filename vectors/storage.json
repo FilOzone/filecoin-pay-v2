@@ -1,45 +1,45 @@
 {
   "accounts": [
     {
-      "balance": "2500000000000000000",
-      "drainRate": "7000000000000",
-      "modifiedEpoch": "1030",
+      "balance": "0x000000000000000022b1c8c1227a0000",
+      "drainRate": "0x0000000000065dd0837000",
+      "modifiedEpoch": "0x0000000406",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
       "slot": "0x9be4ef2b2db0c365da07dde0a9e16d4d9b01722c37013f64e8a997355f26c998",
       "token": "0x0000000000000000000000000000000000000000",
       "word": "0x00000004060000000000065dd0837000000000000000000022b1c8c1227a0000"
     },
     {
-      "balance": "469950000000000000000",
-      "drainRate": "8000000000000000",
-      "modifiedEpoch": "1020",
+      "balance": "0x000000000000001979ddcb1922d30000",
+      "drainRate": "0x000000001c6bf526340000",
+      "modifiedEpoch": "0x00000003fc",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
       "slot": "0x43534bc6586293c75dc1bcb6b28331f9733d3a31504b1a9059e00c5784d42795",
       "token": "0x1111111111111111111111111111111111111111",
       "word": "0x00000003fc000000001c6bf526340000000000000000001979ddcb1922d30000"
     },
     {
-      "balance": "1000000000000000000",
-      "drainRate": "0",
-      "modifiedEpoch": "0",
+      "balance": "0x00000000000000000de0b6b3a7640000",
+      "drainRate": "0x0000000000000000000000",
+      "modifiedEpoch": "0x0000000000",
       "owner": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
       "slot": "0x30ae5f83cb4c16ccd600c8edd2c189ad69b4ce4a19315ac74d94bddbdf128a24",
       "token": "0x0000000000000000000000000000000000000000",
       "word": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"
     },
     {
-      "balance": "200150000000000000000",
-      "drainRate": "0",
-      "modifiedEpoch": "0",
+      "balance": "0x000000000000000ad9a3a48f526f0000",
+      "drainRate": "0x0000000000000000000000",
+      "modifiedEpoch": "0x0000000000",
       "owner": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
       "slot": "0x20b072c0440e480bda556ad9e61879309163b135e3cb11f50302ac8d10d0c742",
       "token": "0x1111111111111111111111111111111111111111",
       "word": "0x00000000000000000000000000000000000000000000000ad9a3a48f526f0000"
     },
     {
-      "balance": "140000000000000",
-      "drainRate": "0",
-      "modifiedEpoch": "0",
+      "balance": "0x000000000000000000007f544a44c000",
+      "drainRate": "0x0000000000000000000000",
+      "modifiedEpoch": "0x0000000000",
       "owner": "0xCA401ca401Ca401CA401CA401cA401CA401ca401",
       "slot": "0xb5a61636fe42f7a23d004f496b967035bb8a288a6b3bea18450ad73a0dfa5e94",
       "token": "0x0000000000000000000000000000000000000000",
@@ -49,65 +49,65 @@
   "packing": {
     "checkpoints": [
       {
-        "balance": "340282366920938463463374607431768211455",
-        "drainRate": "309485009821345068724781055",
-        "modifiedEpoch": "1099511627775",
+        "balance": "0xffffffffffffffffffffffffffffffff",
+        "drainRate": "0xffffffffffffffffffffff",
+        "modifiedEpoch": "0xffffffffff",
         "word": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       },
       {
-        "balance": "1339673755198158349044581307228491536",
-        "drainRate": "20637093465364893779171867",
-        "modifiedEpoch": "120747597600",
+        "balance": "0x0102030405060708090a0b0c0d0e0f10",
+        "drainRate": "0x1112131415161718191a1b",
+        "modifiedEpoch": "0x1c1d1e1f20",
         "word": "0x1c1d1e1f201112131415161718191a1b0102030405060708090a0b0c0d0e0f10"
       },
       {
-        "balance": "340282366920938463463374607431768211455",
-        "drainRate": "0",
-        "modifiedEpoch": "0",
+        "balance": "0xffffffffffffffffffffffffffffffff",
+        "drainRate": "0x0000000000000000000000",
+        "modifiedEpoch": "0x0000000000",
         "word": "0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff"
       },
       {
-        "balance": "0",
-        "drainRate": "309485009821345068724781055",
-        "modifiedEpoch": "0",
+        "balance": "0x00000000000000000000000000000000",
+        "drainRate": "0xffffffffffffffffffffff",
+        "modifiedEpoch": "0x0000000000",
         "word": "0x0000000000ffffffffffffffffffffff00000000000000000000000000000000"
       },
       {
-        "balance": "0",
-        "drainRate": "0",
-        "modifiedEpoch": "1099511627775",
+        "balance": "0x00000000000000000000000000000000",
+        "drainRate": "0x0000000000000000000000",
+        "modifiedEpoch": "0xffffffffff",
         "word": "0xffffffffff000000000000000000000000000000000000000000000000000000"
       }
     ],
     "streams": [
       {
-        "available": "340282366920938463463374607431768211455",
-        "incomingRate": "309485009821345068724781055",
-        "settledUpTo": "1099511627775",
+        "available": "0xffffffffffffffffffffffffffffffff",
+        "incomingRate": "0xffffffffffffffffffffff",
+        "settledUpTo": "0xffffffffff",
         "word": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       },
       {
-        "available": "1339673755198158349044581307228491536",
-        "incomingRate": "20637093465364893779171867",
-        "settledUpTo": "120747597600",
+        "available": "0x0102030405060708090a0b0c0d0e0f10",
+        "incomingRate": "0x1112131415161718191a1b",
+        "settledUpTo": "0x1c1d1e1f20",
         "word": "0x0102030405060708090a0b0c0d0e0f101c1d1e1f201112131415161718191a1b"
       },
       {
-        "available": "0",
-        "incomingRate": "309485009821345068724781055",
-        "settledUpTo": "0",
+        "available": "0x00000000000000000000000000000000",
+        "incomingRate": "0xffffffffffffffffffffff",
+        "settledUpTo": "0x0000000000",
         "word": "0x000000000000000000000000000000000000000000ffffffffffffffffffffff"
       },
       {
-        "available": "0",
-        "incomingRate": "0",
-        "settledUpTo": "1099511627775",
+        "available": "0x00000000000000000000000000000000",
+        "incomingRate": "0x0000000000000000000000",
+        "settledUpTo": "0xffffffffff",
         "word": "0x00000000000000000000000000000000ffffffffff0000000000000000000000"
       },
       {
-        "available": "340282366920938463463374607431768211455",
-        "incomingRate": "0",
-        "settledUpTo": "0",
+        "available": "0xffffffffffffffffffffffffffffffff",
+        "incomingRate": "0x0000000000000000000000",
+        "settledUpTo": "0x0000000000",
         "word": "0xffffffffffffffffffffffffffffffff00000000000000000000000000000000"
       }
     ]
@@ -116,59 +116,59 @@
     {
       "operator": "0x2222222222222222222222222222222222222222",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-      "permissions": "8",
+      "permissions": "0x0000000000000000000000000000000000000000000000000000000000000008",
       "slot": "0x1c90174af6b8577a7e4c7525ecf4c3175e4b2a67818c0de9b0abd5b6f592ebc6",
       "word": "0x0000000000000000000000000000000000000000000000000000000000000008"
     },
     {
       "operator": "0xCA401ca401Ca401CA401CA401cA401CA401ca401",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-      "permissions": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+      "permissions": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "slot": "0xc455a13f6295266c6dd4ddf3274f87eb0da7168405b303e272c43223cbe24083",
       "word": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     },
     {
       "operator": "0x2222222222222222222222222222222222222222",
       "owner": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
-      "permissions": "12",
+      "permissions": "0x000000000000000000000000000000000000000000000000000000000000000c",
       "slot": "0xffd6033f8e832828fac45a76af9c2ef549bd50c12d20da792ed7f1d0ec5d081a",
       "word": "0x000000000000000000000000000000000000000000000000000000000000000c"
     }
   ],
   "rails": [
     {
-      "available": "10000000000000000000",
+      "available": "0x00000000000000008ac7230489e80000",
       "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-      "incomingRate": "5000000000000000",
-      "nonce": "1",
+      "incomingRate": "0x0000000011c37937e08000",
+      "nonce": "0x0000000000000001",
       "operator": "0x2222222222222222222222222222222222222222",
       "railId": "0x7da03c55af603d5693471b19e80e1500b30f68a411c45fb4b87d59ecbe9b2460",
       "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
-      "settledUpTo": "1040",
+      "settledUpTo": "0x0000000410",
       "token": "0x1111111111111111111111111111111111111111",
       "word": "0x00000000000000008ac7230489e8000000000004100000000011c37937e08000"
     },
     {
-      "available": "20000000000000000000",
+      "available": "0x0000000000000001158e460913d00000",
       "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-      "incomingRate": "3000000000000000",
-      "nonce": "9223372036854775810",
+      "incomingRate": "0x000000000aa87bee538000",
+      "nonce": "0x8000000000000002",
       "operator": "0x2222222222222222222222222222222222222222",
       "railId": "0x8b5b25b66161c8f32bb29649dfa7f6ae5f353d863869549f6f662dacd8accf71",
       "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
-      "settledUpTo": "1020",
+      "settledUpTo": "0x00000003fc",
       "token": "0x1111111111111111111111111111111111111111",
       "word": "0x0000000000000001158e460913d0000000000003fc000000000aa87bee538000"
     },
     {
-      "available": "500000000000000000",
+      "available": "0x000000000000000006f05b59d3b20000",
       "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-      "incomingRate": "7000000000000",
-      "nonce": "3",
+      "incomingRate": "0x0000000000065dd0837000",
+      "nonce": "0x0000000000000003",
       "operator": "0x2222222222222222222222222222222222222222",
       "railId": "0x3342bfae66bd910b85afb0a7735bb96c6466c4c1a7b02864512005c67a2cdf65",
       "recipient": "0xCA401ca401Ca401CA401CA401cA401CA401ca401",
-      "settledUpTo": "1050",
+      "settledUpTo": "0x000000041a",
       "token": "0x0000000000000000000000000000000000000000",
       "word": "0x000000000000000006f05b59d3b20000000000041a0000000000065dd0837000"
     }

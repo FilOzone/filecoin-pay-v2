@@ -65,7 +65,7 @@
         {
           "args": {
             "operator": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "permissions": "255"
+            "permissions": "0xff"
           },
           "op": "authorize"
         }
@@ -78,7 +78,7 @@
         {
           "args": {
             "from": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-            "nonce": "72623859790382856",
+            "nonce": "0x0102030405060708",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "setRail"
@@ -92,7 +92,7 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "18446744073709551615",
+            "nonce": "0xffffffffffffffff",
             "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
           },
           "op": "createRail"
@@ -106,7 +106,7 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "18446744073709551615",
+            "nonce": "0xffffffffffffffff",
             "operator": "0x2222222222222222222222222222222222222222",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
@@ -120,7 +120,7 @@
       "ops": [
         {
           "args": {
-            "amount": "340282366920938463463374607431768211455"
+            "amount": "0xffffffffffffffffffffffffffffffff"
           },
           "op": "withdraw"
         }
@@ -132,7 +132,7 @@
       "ops": [
         {
           "args": {
-            "amount": "1339673755198158349044581307228491536"
+            "amount": "0x0102030405060708090a0b0c0d0e0f10"
           },
           "op": "deposit"
         }
@@ -144,7 +144,7 @@
       "ops": [
         {
           "args": {
-            "amount": "340282366920938463463374607431768211455",
+            "amount": "0xffffffffffffffffffffffffffffffff",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "withdrawTo"
@@ -157,7 +157,7 @@
       "ops": [
         {
           "args": {
-            "amount": "1339673755198158349044581307228491536",
+            "amount": "0x0102030405060708090a0b0c0d0e0f10",
             "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
           },
           "op": "depositTo"
@@ -170,7 +170,7 @@
       "ops": [
         {
           "args": {
-            "amount": "340282366920938463463374607431768211455",
+            "amount": "0xffffffffffffffffffffffffffffffff",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "transfer"
@@ -183,7 +183,7 @@
       "ops": [
         {
           "args": {
-            "amount": "1339673755198158349044581307228491536",
+            "amount": "0x0102030405060708090a0b0c0d0e0f10",
             "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
             "recipient": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"
           },
@@ -209,7 +209,7 @@
       "ops": [
         {
           "args": {
-            "rate": "309485009821345068724781055"
+            "rate": "0xffffffffffffffffffffff"
           },
           "op": "increaseRate"
         }
@@ -221,7 +221,7 @@
       "ops": [
         {
           "args": {
-            "rate": "1218426182456967898401291"
+            "rate": "0x0102030405060708090a0b"
           },
           "op": "decreaseRate"
         }
@@ -233,7 +233,7 @@
       "ops": [
         {
           "args": {
-            "rate": "309485009821345068724781055"
+            "rate": "0xffffffffffffffffffffff"
           },
           "op": "setRate"
         }
@@ -255,7 +255,7 @@
       "ops": [
         {
           "args": {
-            "amount": "340282366920938463463374607431768211455"
+            "amount": "0xffffffffffffffffffffffffffffffff"
           },
           "op": "disburse"
         }
@@ -267,7 +267,7 @@
       "ops": [
         {
           "args": {
-            "amount": "1339673755198158349044581307228491536"
+            "amount": "0x0102030405060708090a0b0c0d0e0f10"
           },
           "op": "lock"
         }
@@ -279,7 +279,7 @@
       "ops": [
         {
           "args": {
-            "amount": "340282366920938463463374607431768211455"
+            "amount": "0xffffffffffffffffffffffffffffffff"
           },
           "op": "unlock"
         }
@@ -291,7 +291,7 @@
       "ops": [
         {
           "args": {
-            "amount": "1339673755198158349044581307228491536"
+            "amount": "0x0102030405060708090a0b0c0d0e0f10"
           },
           "op": "setAvailable"
         }
@@ -338,14 +338,14 @@
         {
           "args": {
             "operator": "0x0000000000000000000000000000000000000000",
-            "permissions": "0"
+            "permissions": "0x00"
           },
           "op": "authorize"
         },
         {
           "args": {
             "from": "0x0000000000000000000000000000000000000000",
-            "nonce": "0",
+            "nonce": "0x0000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
           "op": "setRail"
@@ -353,7 +353,7 @@
         {
           "args": {
             "from": "0x0000000000000000000000000000000000000000",
-            "nonce": "0",
+            "nonce": "0x0000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
           "op": "createRail"
@@ -361,7 +361,7 @@
         {
           "args": {
             "from": "0x0000000000000000000000000000000000000000",
-            "nonce": "0",
+            "nonce": "0x0000000000000000",
             "operator": "0x0000000000000000000000000000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
@@ -369,40 +369,40 @@
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "withdraw"
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "deposit"
         },
         {
           "args": {
-            "amount": "0",
+            "amount": "0x00000000000000000000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
           "op": "withdrawTo"
         },
         {
           "args": {
-            "amount": "0",
+            "amount": "0x00000000000000000000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
           "op": "depositTo"
         },
         {
           "args": {
-            "amount": "0",
+            "amount": "0x00000000000000000000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
           "op": "transfer"
         },
         {
           "args": {
-            "amount": "0",
+            "amount": "0x00000000000000000000000000000000",
             "owner": "0x0000000000000000000000000000000000000000",
             "recipient": "0x0000000000000000000000000000000000000000"
           },
@@ -416,43 +416,43 @@
         },
         {
           "args": {
-            "rate": "0"
+            "rate": "0x0000000000000000000000"
           },
           "op": "increaseRate"
         },
         {
           "args": {
-            "rate": "0"
+            "rate": "0x0000000000000000000000"
           },
           "op": "decreaseRate"
         },
         {
           "args": {
-            "rate": "0"
+            "rate": "0x0000000000000000000000"
           },
           "op": "setRate"
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "disburse"
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "lock"
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "unlock"
         },
         {
           "args": {
-            "amount": "0"
+            "amount": "0x00000000000000000000000000000000"
           },
           "op": "setAvailable"
         },
@@ -476,14 +476,14 @@
         },
         {
           "args": {
-            "amount": "100000000000000000000"
+            "amount": "0x00000000000000056bc75e2d63100000"
           },
           "op": "deposit"
         },
         {
           "args": {
             "operator": "0x2222222222222222222222222222222222222222",
-            "permissions": "8"
+            "permissions": "0x08"
           },
           "op": "authorize"
         }
@@ -502,20 +502,20 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "9223372036854775809",
+            "nonce": "0x8000000000000001",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "createRail"
         },
         {
           "args": {
-            "rate": "1000"
+            "rate": "0x00000000000000000003e8"
           },
           "op": "setRate"
         },
         {
           "args": {
-            "amount": "500000"
+            "amount": "0x0000000000000000000000000007a120"
           },
           "op": "lock"
         }
@@ -534,42 +534,42 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "9223372036854775815",
+            "nonce": "0x8000000000000007",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "createRail"
         },
         {
           "args": {
-            "amount": "500000000000000000"
+            "amount": "0x000000000000000006f05b59d3b20000"
           },
           "op": "lock"
         },
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "7",
+            "nonce": "0x0000000000000007",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "createRail"
         },
         {
           "args": {
-            "amount": "1000000000000000000"
+            "amount": "0x00000000000000000de0b6b3a7640000"
           },
           "op": "lock"
         },
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "4611686018427387911",
+            "nonce": "0x4000000000000007",
             "recipient": "0xCA401ca401Ca401CA401CA401cA401CA401ca401"
           },
           "op": "createRail"
         },
         {
           "args": {
-            "amount": "300000000000000000"
+            "amount": "0x00000000000000000429d069189e0000"
           },
           "op": "lock"
         }
@@ -588,7 +588,7 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "1",
+            "nonce": "0x0000000000000001",
             "operator": "0x2222222222222222222222222222222222222222",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
@@ -597,7 +597,7 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "2",
+            "nonce": "0x0000000000000002",
             "operator": "0x2222222222222222222222222222222222222222",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
@@ -606,7 +606,7 @@
         {
           "args": {
             "from": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-            "nonce": "9223372036854775811",
+            "nonce": "0x8000000000000003",
             "operator": "0x2222222222222222222222222222222222222222",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
@@ -614,7 +614,7 @@
         },
         {
           "args": {
-            "amount": "42000000000000000000",
+            "amount": "0x000000000000000246ddf97976680000",
             "recipient": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce"
           },
           "op": "withdrawTo"
@@ -634,7 +634,7 @@
         {
           "args": {
             "from": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
-            "nonce": "9223372036854775809",
+            "nonce": "0x8000000000000001",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "setRail"
@@ -669,7 +669,7 @@
         },
         {
           "args": {
-            "amount": "5",
+            "amount": "0x00000000000000000000000000000005",
             "recipient": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb"
           },
           "op": "transfer"
