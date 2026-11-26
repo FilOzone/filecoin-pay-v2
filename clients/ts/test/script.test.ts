@@ -22,12 +22,21 @@ const { cases } = JSON.parse(readFileSync(VECTORS, 'utf8')) as {
 const A = '0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce'
 const B = '0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb'
 
-// Addresses lowercased, integers as decimal strings: the form both sides are compared in.
+// The form both sides are compared in: addresses lowercased, integers as `bigint` whether the
+// vector writes them in decimal or hex. The op table says which operand is which.
 function normalize(decoded: { op: string; args: Record<string, unknown> }[]) {
-  return decoded.map(({ op, args }) => ({
-    op,
-    args: Object.fromEntries(Object.entries(args).map(([name, value]) => [name, String(value).toLowerCase()])),
-  }))
+  return decoded.map(({ op, args }) => {
+    const types: Record<string, string> = Object.fromEntries(ops.find((entry) => entry.name === op)?.operands ?? [])
+    return {
+      op,
+      args: Object.fromEntries(
+        Object.entries(args).map(([name, value]) => [
+          name,
+          types[name] === 'address' ? String(value).toLowerCase() : BigInt(value as string | bigint),
+        ])
+      ),
+    }
+  })
 }
 
 function call(builder: ScriptBuilder, { op, args }: VectorOp): ScriptBuilder {
