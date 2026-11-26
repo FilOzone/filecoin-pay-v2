@@ -1,8 +1,8 @@
 # @filoz/filecoin-pay-v2
 
 TypeScript client for Filecoin Pay v2. It builds and decodes the scripts that
-`FilecoinPayV2.executeScript` runs, and exports the contract ABI. [viem](https://viem.sh) is the only
-dependency.
+`FilecoinPayV2.executeScript` runs, reads the contract's state from storage, and exports the contract
+ABI. [viem](https://viem.sh) is the only dependency.
 
 ## Install
 
@@ -102,6 +102,94 @@ below, big-endian and tightly packed.
 
 `authorize` takes the full `Permissions` value and encodes its low byte; higher bits are dropped, as in
 Solidity.
+
+## Reading state
+
+Rails, balance checkpoints and permissions have no view function. They are read from storage, with
+`eth_getStorageAt` or the contract's `extsload(bytes32)`. `@filoz/filecoin-pay-v2/storage` computes the
+slots, unpacks the words and reads them.
+
+| Value | Slot | Word (bit offsets from the low end) |
+|---|---|---|
+| user base (`userSlot`) | `keccak256(abi.encode(owner, uint256(0)))` | accounts mapping at the base, authorizations mapping at base + 1 |
+| account checkpoint (`accountSlot`) | `keccak256(abi.encode(token, userSlot))`, native FIL is token 0 | `balance` uint128 @0, `drainRate` uint88 @128, `modifiedEpoch` uint40 @216 |
+| permissions (`permissionsSlot`) | `keccak256(abi.encode(operator, userSlot + 1))` | the whole word is the permission bits |
+| rail (`railId`) | `keccak256(abi.encodePacked(operator, from, token, recipient, uint64 nonce))`; the rail id is the slot | `incomingRate` uint88 @0, `settledUpTo` uint40 @88, `available` uint128 @128 |
+
+The layout follows `src/lib/User.sol` and `src/lib/RailId.sol`. The tests check it against
+[`vectors/storage.json`](../../vectors/storage.json), which is generated from the contract.
+
+Which balance to read:
+
+- The contract's `balanceOf(owner, token)` gives the spendable balance now, and nothing else.
+- `readCheckpoint` gives the stored checkpoint: `balance` as of `modifiedEpoch`, which still includes what
+  the account's rails have drained since, and the `drainRate`.
+- `readAccountState` projects the checkpoint to the block it was read at: the spendable `balance` (equal
+  to `balanceOf`), `fundedUntil`, `runway` and `debt`. `fundedUntil` and `runway` are `maxUint256` when
+  nothing drains the account. `accountStateAt` does the same from a checkpoint you already hold, with no
+  network call.
+
+`readCheckpoint`, `readPermissions`, `readRail` and `readAccountState` each use one `eth_getStorageAt`.
+`readSlots` and `readAccountStates` read several slots at one block through Multicall3, in one request
+for a short list. The Multicall3 address is `multicallAddress` when given, else the one the client's
+chain defines, else `MULTICALL3_ADDRESS`, the standard address. viem's stock `filecoinCalibration` has
+no Multicall3 entry, and the fallback covers it.
+
+Reads that must be consistent with each other take the same `blockNumber`. A `blockNumber` that lands
+on a Filecoin null round makes the read fail on Lotus-based nodes; the default, the latest block, is
+safe. Without `blockNumber`, `readSlots`, `readAccountState` and `readAccountStates` first ask for the
+latest block number; pass one you already hold to skip that call.
+
+A rail, its payer's account and the operator's permissions in one request:
+
+```ts
+import { hasPermissions, Permissions } from '@filoz/filecoin-pay-v2'
+import {
+  accountSlot,
+  accountStateAt,
+  permissionsSlot,
+  railId,
+  readSlots,
+  unpackCheckpoint,
+  unpackRail,
+} from '@filoz/filecoin-pay-v2/storage'
+import { hexToBigInt } from 'viem'
+import { getBlockNumber } from 'viem/actions'
+
+const key = { operator, from: payer, token: USDFC, recipient: provider, nonce: 1n }
+const blockNumber = await getBlockNumber(client)
+const [railWord, payerWord, permissionsWord] = await readSlots(client, {
+  address: filecoinPay,
+  blockNumber,
+  slots: [railId(key), accountSlot(payer, USDFC), permissionsSlot(payer, operator)],
+})
+
+const rail = unpackRail(railWord) // { incomingRate, settledUpTo, available, exists }
+const payerState = accountStateAt(unpackCheckpoint(payerWord), blockNumber)
+const canCreateRails = hasPermissions(hexToBigInt(permissionsWord), Permissions.CREATE_RAIL)
+```
+
+`rail.available` is the rail's own balance: funds locked from the payer and, on a rail created with
+`FLAG_CALLBACK`, the settled amounts the operator has not disbursed yet.
+
+`extsloadCall` gives the same slot read as a plain call, to mix into your own `multicall` next to calls
+to other contracts:
+
+```ts
+const [payerWord, walletBalance] = await multicall(client, {
+  allowFailure: false,
+  contracts: [
+    extsloadCall({ address: filecoinPay, slot: accountSlot(payer, USDFC) }),
+    { address: USDFC, abi: erc20Abi, functionName: 'balanceOf', args: [payer] },
+  ],
+})
+```
+
+Differences from Filecoin Pay v1:
+
+- There is no account-level lockup. Locked funds live in each rail's `available`, outside the account's
+  balance.
+- A payer's rails cannot be listed from storage. Get rail ids from `RailCreated` events or an indexer.
 
 ## Notes
 

@@ -10,3 +10,4 @@
  */
 export * from './base.ts'
 export * from './script.ts'
+export * from './storage.ts'

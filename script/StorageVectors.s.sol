@@ -36,6 +36,7 @@ contract StorageVectors is Script {
     address private constant ALICE = 0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce;
     address private constant BOB = 0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb;
     address private constant CAROL = 0xCA401ca401Ca401CA401CA401cA401CA401ca401;
+    address private constant DAVE = 0xDA7edA7eDa7eDa7edA7EDA7EDa7EDa7EdA7EDa7E;
     address private constant TOKEN = 0x1111111111111111111111111111111111111111;
     address private constant OPERATOR = 0x2222222222222222222222222222222222222222;
     uint256 private constant NATIVE_TOKEN = 0;
@@ -109,6 +110,20 @@ contract StorageVectors is Script {
         vm.roll(1050);
         payments.settleRail(OPERATOR, ALICE, CAROL, 3, NATIVE_TOKEN);
         vm.stopPrank();
+
+        // DAVE drains past his balance: nothing settles his rail, so no other account moves
+        MockERC20(TOKEN).mint(DAVE, 1e18);
+        vm.startPrank(DAVE);
+        MockERC20(TOKEN).approve(address(payments), type(uint256).max);
+        payments.deposit(TOKEN, 1e18);
+        payments.authorize(OPERATOR, CREATE_RAIL);
+        vm.stopPrank();
+
+        vm.startPrank(OPERATOR);
+        payments.createRail(DAVE, CAROL, 4, TOKEN_ID);
+        payments.modifyRate(DAVE, CAROL, 4, TOKEN_ID, 0.3e18);
+        vm.stopPrank();
+        vm.roll(1060);
     }
 
     function run() public {
@@ -129,12 +144,14 @@ contract StorageVectors is Script {
         _user(ALICE);
         _user(BOB);
         _user(CAROL);
+        _user(DAVE);
 
         _account(ALICE, NATIVE_TOKEN);
         _account(ALICE, TOKEN_ID);
         _account(BOB, NATIVE_TOKEN);
         _account(BOB, TOKEN_ID);
         _account(CAROL, NATIVE_TOKEN);
+        _account(DAVE, TOKEN_ID);
 
         _permissions(ALICE, OPERATOR);
         _permissions(ALICE, CAROL);
@@ -158,6 +175,7 @@ contract StorageVectors is Script {
 
         vm.serializeString("packing", "checkpoints", packedCheckpoints);
         vm.serializeString("root", "packing", vm.serializeString("packing", "streams", packedStreams));
+        _hex("root", "block", abi.encodePacked(uint40(block.number)));
         vm.serializeString("root", "users", users);
         vm.serializeString("root", "accounts", accounts);
         vm.serializeString("root", "permissions", permissions);
@@ -216,6 +234,7 @@ contract StorageVectors is Script {
         vm.serializeAddress(key, "owner", owner);
         vm.serializeAddress(key, "token", address(uint160(token)));
         vm.serializeBytes32(key, "slot", slot);
+        _hex(key, "balanceOf", abi.encodePacked(uint128(payments.balanceOf(owner, token))));
         accounts.push(_checkpoint(key, word, checkpoint));
     }
 

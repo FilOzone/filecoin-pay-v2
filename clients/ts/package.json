@@ -27,6 +27,10 @@
     "./errors": {
       "types": "./dist/src/errors/index.d.ts",
       "default": "./dist/src/errors/index.js"
+    },
+    "./storage": {
+      "types": "./dist/src/storage/index.d.ts",
+      "default": "./dist/src/storage/index.js"
     }
   },
   "files": [
