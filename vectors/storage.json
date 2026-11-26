@@ -2,6 +2,7 @@
   "accounts": [
     {
       "balance": "0x000000000000000022b1c8c1227a0000",
+      "balanceOf": "0x000000000000000022b109c2b312e000",
       "drainRate": "0x0000000000065dd0837000",
       "modifiedEpoch": "0x0000000406",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
@@ -11,6 +12,7 @@
     },
     {
       "balance": "0x000000000000001979ddcb1922d30000",
+      "balanceOf": "0x0000000000000019756ceccb2ab30000",
       "drainRate": "0x000000001c6bf526340000",
       "modifiedEpoch": "0x00000003fc",
       "owner": "0xA11cea11CEA11CEA11cEa11CeA11ceA11CEA11Ce",
@@ -20,6 +22,7 @@
     },
     {
       "balance": "0x00000000000000000de0b6b3a7640000",
+      "balanceOf": "0x00000000000000000de0b6b3a7640000",
       "drainRate": "0x0000000000000000000000",
       "modifiedEpoch": "0x0000000000",
       "owner": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
@@ -29,6 +32,7 @@
     },
     {
       "balance": "0x000000000000000ad9a3a48f526f0000",
+      "balanceOf": "0x000000000000000ad9a3a48f526f0000",
       "drainRate": "0x0000000000000000000000",
       "modifiedEpoch": "0x0000000000",
       "owner": "0xb0bB0bB0Bb0Bb0bB0Bb0bb0bb0bB0BB0Bb0BB0Bb",
@@ -38,14 +42,26 @@
     },
     {
       "balance": "0x000000000000000000007f544a44c000",
+      "balanceOf": "0x000000000000000000007f544a44c000",
       "drainRate": "0x0000000000000000000000",
       "modifiedEpoch": "0x0000000000",
       "owner": "0xCA401ca401Ca401CA401CA401cA401CA401ca401",
       "slot": "0xb5a61636fe42f7a23d004f496b967035bb8a288a6b3bea18450ad73a0dfa5e94",
       "token": "0x0000000000000000000000000000000000000000",
       "word": "0x00000000000000000000000000000000000000000000000000007f544a44c000"
+    },
+    {
+      "balance": "0x00000000000000000de0b6b3a7640000",
+      "balanceOf": "0x00000000000000000000000000000000",
+      "drainRate": "0x0000000429d069189e0000",
+      "modifiedEpoch": "0x000000041a",
+      "owner": "0xDA7edA7eDa7eDa7edA7EDA7EDa7EDa7EdA7EDa7E",
+      "slot": "0x84186a6aa826a9a79c3bfcb8edafe43ff47542a6588ec456f3dd9231ed4b2494",
+      "token": "0x1111111111111111111111111111111111111111",
+      "word": "0x000000041a0000000429d069189e000000000000000000000de0b6b3a7640000"
     }
   ],
+  "block": "0x0000000424",
   "packing": {
     "checkpoints": [
       {
@@ -185,6 +201,10 @@
     {
       "owner": "0xCA401ca401Ca401CA401CA401cA401CA401ca401",
       "slot": "0xd4342576c6ac7db3853a5c788b1db960df8cc38ae616ece31deb32908cce7bf2"
+    },
+    {
+      "owner": "0xDA7edA7eDa7eDa7edA7EDA7EDa7EDa7EdA7EDa7E",
+      "slot": "0x264b7c2cf2a825cce10b12d43d7367ddbcc5b6107c17794cf2084ef4205f5b12"
     }
   ]
 }

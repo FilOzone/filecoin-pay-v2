@@ -30,6 +30,21 @@ export const Permissions = {
 } as const
 
 /**
+ * Checks that every bit of `required` is set in `permissions`. No network call.
+ *
+ * @param permissions - The bits held, e.g. from `readPermissions`.
+ * @param required - A combination of `Permissions` bits.
+ *
+ * @example
+ * ```ts
+ * hasPermissions(Permissions.ALL, Permissions.CREATE_RAIL | Permissions.TRANSFER) // true
+ * ```
+ */
+export function hasPermissions(permissions: bigint, required: bigint): boolean {
+  return (permissions & required) === required
+}
+
+/**
  * High bit of a rail nonce. A rail created with it settles through the
  * operator's callback.
  *
@@ -45,3 +60,10 @@ export const FLAG_CALLBACK = 1n << 63n
  * first `setToken`.
  */
 export const NATIVE_TOKEN = zeroAddress
+
+/**
+ * The address Multicall3 is deployed at on Filecoin mainnet and calibration,
+ * as on most chains. `readSlots` falls back to it when the client's chain
+ * defines none, which is the case for viem's stock `filecoinCalibration`.
+ */
+export const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11'
