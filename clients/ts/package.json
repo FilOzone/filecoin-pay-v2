@@ -1,0 +1,60 @@
+{
+  "name": "@filoz/filecoin-pay-v2",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TypeScript client for Filecoin Pay v2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FilOzone/filecoin-pay-v2.git",
+    "directory": "clients/ts"
+  },
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./script": {
+      "types": "./dist/src/script/index.d.ts",
+      "default": "./dist/src/script/index.js"
+    },
+    "./abi": {
+      "types": "./dist/src/abi/index.d.ts",
+      "default": "./dist/src/abi/index.js"
+    },
+    "./errors": {
+      "types": "./dist/src/errors/index.d.ts",
+      "default": "./dist/src/errors/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "dist/src"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run --dir test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "generate:abi": "node scripts/generate-abi.mjs",
+    "check:package": "publint && attw --pack --profile esm-only"
+  },
+  "peerDependencies": {
+    "viem": "2.x"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.9",
+    "@types/node": "^26.6.6",
+    "publint": "^0.3.25",
+    "typescript": "^6.0.3",
+    "viem": "^2.55.19",
+    "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.20.0"
+}
